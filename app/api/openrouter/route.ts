@@ -5,6 +5,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const messages = body?.messages;
+    const model = body?.model;
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json(
@@ -13,10 +14,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const completion = await getOpenRouterCompletion(
-      "openai/gpt-4o-mini",
-      messages,
-    );
+    const completion = await getOpenRouterCompletion(model, messages);
 
     return NextResponse.json({ completion });
   } catch (error) {

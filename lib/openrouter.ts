@@ -18,7 +18,9 @@ export async function getOpenRouterCompletion(
     },
   });
 
-  console.log("OpenRouter completion:", completion);
+  if (!completion) {
+    throw new Error("OpenRouter returned an empty completion");
+  }
 
   const content = completion.choices?.[0]?.message?.content;
 
