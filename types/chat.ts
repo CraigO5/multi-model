@@ -2,6 +2,7 @@ export type Usage = {
   promptTokens: number;
   completionTokens: number;
   cost: number;
+  latencyMs?: number;
 };
 
 export type ChatMessage = {
@@ -9,6 +10,13 @@ export type ChatMessage = {
   content: string;
   model?: string | null;
   usage?: Usage;
+  synthesis?: boolean;
+};
+
+export type PromptTemplate = {
+  id: string;
+  name: string;
+  prompt: string;
 };
 
 export type Model = {
