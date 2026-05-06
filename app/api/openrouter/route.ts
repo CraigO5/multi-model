@@ -15,11 +15,21 @@ export async function POST(request: Request) {
     }
 
     const prompt = body?.prompt ?? null;
-    const completion = await getOpenRouterCompletion(model, messages, prompt);
+    const result = await getOpenRouterCompletion(model, messages, prompt);
 
-    return NextResponse.json({ completion });
-  } catch (error) {
+    return NextResponse.json({
+      completion: result.content,
+      usage: result.usage,
+    });
+  } catch (error: unknown) {
     console.error("OpenRouter route failed:", error);
+    const status = (error as { statusCode?: number })?.statusCode;
+    if (status === 429) {
+      return NextResponse.json(
+        { error: "rate_limited" },
+        { status: 429 },
+      );
+    }
     return NextResponse.json(
       { error: "failed to generate response" },
       { status: 500 },

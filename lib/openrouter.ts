@@ -1,5 +1,6 @@
 import type { ChatMessage } from "@/types/chat";
 import { OpenRouter } from "@openrouter/sdk";
+import { MAX_TOKENS_PER_RESPONSE } from "@/lib/models";
 
 export async function getOpenRouterCompletion(
   model: string,
@@ -20,6 +21,7 @@ export async function getOpenRouterCompletion(
     chatRequest: {
       model,
       messages: allMessages,
+      maxTokens: MAX_TOKENS_PER_RESPONSE,
     },
   });
 
@@ -33,5 +35,11 @@ export async function getOpenRouterCompletion(
     throw new Error("OpenRouter returned a non-text or empty completion");
   }
 
-  return content;
+  return {
+    content,
+    usage: {
+      promptTokens: completion.usage?.promptTokens ?? 0,
+      completionTokens: completion.usage?.completionTokens ?? 0,
+    },
+  };
 }
