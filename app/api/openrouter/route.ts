@@ -14,7 +14,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const completion = await getOpenRouterCompletion(model, messages);
+    const prompt = body?.prompt ?? null;
+    const completion = await getOpenRouterCompletion(model, messages, prompt);
 
     return NextResponse.json({ completion });
   } catch (error) {

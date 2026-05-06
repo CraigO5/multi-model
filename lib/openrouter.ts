@@ -4,17 +4,22 @@ import { OpenRouter } from "@openrouter/sdk";
 export async function getOpenRouterCompletion(
   model: string,
   messages: ChatMessage[],
+  prompt: string | null = null,
 ) {
   const client = new OpenRouter({
     apiKey: process.env.OPENROUTER_API_KEY,
   });
 
-  console.log("Sending messages to OpenRouter:", messages);
+  const allMessages = prompt
+    ? [{ role: "system" as const, content: prompt }, ...messages]
+    : messages;
+
+  console.log("Sending messages to OpenRouter:", allMessages);
 
   const completion = await client.chat.send({
     chatRequest: {
       model,
-      messages,
+      messages: allMessages,
     },
   });
 

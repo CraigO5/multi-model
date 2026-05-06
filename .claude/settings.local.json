@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "WebFetch(domain:openrouter.ai)",
+      "Bash(curl -s \"https://openrouter.ai/api/v1/models\")",
+      "Bash(python3)",
+      "Bash(python3 -c ' *)",
+      "mcp__Claude_in_Chrome__navigate",
+      "WebSearch",
+      "WebFetch(domain:lobehub.com)",
+      "WebFetch(domain:custom.typingmind.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:icons.lobehub.com)",
+      "WebFetch(domain:unpkg.com)"
+    ]
+  }
+}
