@@ -23,6 +23,8 @@ export type Model = {
   id: string;
   name: string;
   icon: string;
+  color: string;
+  initial: string;
   pricing: {
     prompt: number; // USD per 1M tokens
     completion: number; // USD per 1M tokens

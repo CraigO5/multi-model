@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { ChatMessage, PromptTemplate } from "@/types/chat";
 import { MODELS, MAX_SYSTEM_PROMPT_CHARS } from "@/lib/models";
 import { ANALYSES, isPaid, formatUsd } from "@/lib/utils";
-import { ChartIcon, ChevronDownIcon, SparkleIcon, TrashIcon } from "@/components/icons";
+import { TrashIcon } from "@/components/icons";
+import { type Icon, Scales, Warning, Checks, FlowArrow, X as PhX, ChartLineUp, SlidersHorizontal, Textbox, Gear, Cpu, CaretDown } from "@phosphor-icons/react";
 
 type Props = {
-  // Analysis
   latestResponses: ChatMessage[];
   canAnalyze: boolean;
   analysisModelId: string;
@@ -18,10 +18,8 @@ type Props = {
   isRateLimited: (modelId: string) => boolean;
   setShowAnalysisPanel: (show: boolean) => void;
   handleAnalysis: (preset: keyof typeof ANALYSES | "custom", customText?: string) => void;
-  // Navigation
   view: "chat" | "analytics";
   setView: (v: "chat" | "analytics") => void;
-  // Settings
   temperature: number;
   setTemperature: (t: number) => void;
   systemPrompt: string;
@@ -33,6 +31,23 @@ type Props = {
   loadTemplate: (t: PromptTemplate) => void;
   deleteTemplate: (id: string) => void;
 };
+
+// Cozy action definitions mapped to existing analysis presets
+const COZY_ACTIONS: { key: "synthesize" | "compare" | "critique" | "factcheck"; Icon: Icon; label: string; sub: string; emoji: string; primary?: boolean }[] = [
+  { key: "synthesize", Icon: FlowArrow, label: "Combine answers", sub: "Get one best answer", emoji: "✨", primary: true },
+  { key: "compare", Icon: Scales, label: "Compare", sub: "Where they agree & disagree", emoji: "⚖️" },
+  { key: "critique", Icon: Warning, label: "Find weak spots", sub: "What might be wrong", emoji: "⚠️" },
+  { key: "factcheck", Icon: Checks, label: "Fact-check", sub: "Verify the claims", emoji: "✓" },
+];
+
+const TIPS = [
+  "Try asking the same thing you'd Google. Three perspectives often beats one.",
+  "Use Blind mode to pick your favorite answer without bias.",
+  "Split view lets you dive deeper into one model's reasoning.",
+  "Ask follow-ups to get better answers. Each model thinks differently.",
+  "Combine answers to get the best of all three models.",
+  "Check facts across models to spot disagreements.",
+];
 
 export function AnalysisPanel({
   latestResponses,
@@ -58,131 +73,200 @@ export function AnalysisPanel({
   loadTemplate,
   deleteTemplate,
 }: Props) {
-  const [showRunAnalysis, setShowRunAnalysis] = useState(true);
-  const [showSystemPrompt, setShowSystemPrompt] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
+  const [showContext, setShowContext] = useState(false);
+  const [tipIndex, setTipIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTipIndex((prev) => (prev + 1) % TIPS.length);
+    }, 8000); // Change tip every 8 seconds
+    return () => clearInterval(timer);
+  }, []);
+
+  // Map temperature (0–2) to creativity (0–100) and back
+  const creativity = Math.round((temperature / 2) * 100);
+  const setCreativity = (val: number) => setTemperature(parseFloat(((val / 100) * 2).toFixed(2)));
+
+  const creativityLabel =
+    creativity < 33 ? "Focused" : creativity < 67 ? "Balanced" : "Playful";
 
   return (
-    <aside className="
-      fixed inset-x-0 bottom-0 z-40 max-h-[80vh] overflow-y-auto
-      md:relative md:inset-auto md:max-h-none md:overflow-y-auto
-      md:w-72 md:shrink-0
-      border-t border-zinc-800/50 md:border-t-0 md:border-l md:border-zinc-800/50
-      flex flex-col bg-zinc-900 animate-panel-in
-    ">
+    <aside
+      className="
+        fixed inset-x-0 bottom-0 z-40 max-h-[80vh] overflow-y-auto
+        md:relative md:inset-auto md:max-h-none md:overflow-y-auto
+        md:w-[296px] md:shrink-0
+        border-t border-white/5 md:border-t-0 md:border-l md:border-white/5
+        flex flex-col animate-panel-in
+      "
+      style={{ background: "var(--cz-surface)" }}
+    >
+
       {/* Mobile drag handle */}
       <div className="md:hidden flex justify-center pt-2 pb-1 shrink-0">
-        <div className="w-8 h-1 bg-zinc-700 rounded-full" />
+        <div style={{ width: 32, height: 4, background: "rgba(237,230,221,0.12)", borderRadius: 2 }} />
       </div>
 
       {/* Header */}
-      <div className="px-5 pt-5 pb-4 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="text-amber-400"><SparkleIcon /></span>
-          <h2 className="text-sm font-semibold text-zinc-200">Studio</h2>
+      <div style={{ padding: "22px 22px 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <SlidersHorizontal size={15} style={{ opacity: 0.6 }} />
+          <span style={{ fontSize: 14, fontWeight: 600 }}>Settings</span>
         </div>
         <button
           onClick={() => setShowAnalysisPanel(false)}
-          title="Hide panel"
-          className="text-zinc-600 hover:text-zinc-300 transition-colors cursor-pointer w-6 h-6 flex items-center justify-center rounded-lg hover:bg-zinc-800 text-sm leading-none"
+          style={{ background: "transparent", border: 0, color: "inherit", opacity: 0.4, cursor: "pointer", padding: "5px", borderRadius: 6, display: "flex", alignItems: "center" }}
+          onMouseEnter={e => { (e.currentTarget.style.opacity = "1"); (e.currentTarget.style.background = "rgba(237,230,221,0.06)"); }}
+          onMouseLeave={e => { (e.currentTarget.style.opacity = "0.4"); (e.currentTarget.style.background = "transparent"); }}
         >
-          ×
+          <PhX size={14} />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 pb-6 space-y-6">
+      <div style={{ flex: 1, overflowY: "auto", padding: "22px 22px", display: "flex", flexDirection: "column", gap: 0 }}>
 
-        {/* Analytics */}
+        {/* Analytics toggle */}
+        <div style={{ paddingBottom: 18, borderBottom: "1px solid rgba(237,230,221,0.06)" }}>
         <button
           onClick={() => setView(view === "analytics" ? "chat" : "analytics")}
-          className={`w-full flex items-center gap-2 text-sm px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer font-medium ${
-            view === "analytics"
-              ? "bg-indigo-600/25 text-indigo-300"
-              : "bg-zinc-800/60 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
-          }`}
+          style={{
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: 13,
+            fontWeight: 500,
+            padding: "10px 14px",
+            borderRadius: 10,
+            border: 0,
+            cursor: "pointer",
+            color: "inherit",
+            background: view === "analytics" ? "var(--cz-accent-soft)" : "rgba(237,230,221,0.04)",
+            transition: "background 0.12s",
+          }}
+          onMouseEnter={e => { if (view !== "analytics") { (e.currentTarget as HTMLElement).style.background = "rgba(237,230,221,0.08)"; } }}
+          onMouseLeave={e => { if (view !== "analytics") { (e.currentTarget as HTMLElement).style.background = "rgba(237,230,221,0.04)"; } }}
         >
-          <ChartIcon />
-          Analytics
+          <ChartLineUp size={15} />
+          <span style={{ color: view === "analytics" ? "var(--cz-accent)" : "inherit" }}>Analytics</span>
         </button>
+        </div>
 
-        {/* Temperature */}
-        <div className="space-y-2">
-          <div className="flex justify-between text-xs text-zinc-500">
-            <span className="uppercase tracking-wider font-medium">Temperature</span>
-            <span className="tabular-nums text-zinc-400">{temperature.toFixed(2)}</span>
+        {/* Creativity slider */}
+        <div style={{ paddingTop: 18, paddingBottom: 18, borderBottom: "1px solid rgba(237,230,221,0.06)" }}>
+          <div style={{ fontSize: 12.5, fontWeight: 500, marginBottom: 10, opacity: 0.85 }}>
+            How creative should answers be?
           </div>
           <input
             type="range"
-            min={0}
-            max={2}
-            step={0.05}
-            value={temperature}
-            onChange={(e) => setTemperature(parseFloat(e.target.value))}
-            className="w-full accent-indigo-500 cursor-pointer"
+            min="0"
+            max="100"
+            value={creativity}
+            onChange={(e) => setCreativity(+e.target.value)}
+            style={{
+              width: "100%",
+              WebkitAppearance: "none",
+              appearance: "none",
+              height: 3,
+              borderRadius: 2,
+              background: `linear-gradient(to right, var(--cz-accent) ${creativity}%, rgba(237,230,221,0.12) ${creativity}%)`,
+              outline: 0,
+              cursor: "pointer",
+              accentColor: "var(--cz-accent)",
+            }}
           />
-          <div className="flex justify-between text-[9px] text-zinc-700">
-            <span>focused</span>
-            <span>balanced</span>
-            <span>creative</span>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, opacity: 0.5, marginTop: 8 }}>
+            <span>Focused</span>
+            <span style={{ fontWeight: creativityLabel === "Balanced" ? 600 : 400, opacity: creativityLabel === "Balanced" ? 0.8 : 0.5 }}>Balanced</span>
+            <span>Playful</span>
           </div>
         </div>
+        </div>
 
-        {/* System prompt */}
-        <div>
+        {/* Context / system prompt */}
+        <div style={{ paddingTop: 18, paddingBottom: 18, borderBottom: "1px solid rgba(237,230,221,0.06)" }}>
           <button
-            onClick={() => setShowSystemPrompt(!showSystemPrompt)}
-            className="w-full flex items-center justify-between text-xs font-medium text-zinc-500 hover:text-zinc-300 cursor-pointer transition-colors"
+            onClick={() => setShowContext(!showContext)}
+            style={{ background: "transparent", border: 0, color: "inherit", fontSize: 12.5, fontWeight: 500, cursor: "pointer", opacity: 0.65, padding: 0, display: "flex", alignItems: "center", gap: 7, fontFamily: "inherit", transition: "opacity 0.12s" }}
+            onMouseEnter={e => (e.currentTarget.style.opacity = "1")}
+            onMouseLeave={e => (e.currentTarget.style.opacity = "0.65")}
           >
-            <span>System prompt</span>
-            <span className={`transition-transform duration-200 ${showSystemPrompt ? "rotate-180" : ""}`}>
-              <ChevronDownIcon />
-            </span>
+            <Textbox size={14} />
+            Give the AIs some context
+            <CaretDown size={16} weight="bold" style={{ marginLeft: "auto", transition: "transform 0.2s", transform: showContext ? "rotate(180deg)" : "rotate(0deg)", opacity: 0.8 }} />
           </button>
-          {showSystemPrompt && (
-            <div className="mt-2 space-y-1.5">
+          {showContext && (
+            <div style={{ marginTop: 10 }} className="animate-expand-in">
               <textarea
                 value={systemPrompt}
                 onChange={(e) => setSystemPrompt(e.target.value.slice(0, MAX_SYSTEM_PROMPT_CHARS))}
-                placeholder="You are a helpful assistant..."
+                placeholder="e.g. I'm a 4th grade teacher writing letters home to parents…"
                 rows={4}
-                className="w-full bg-zinc-800/60 rounded-xl p-3 text-sm text-zinc-200 placeholder-zinc-600 outline-none resize-none transition-all duration-200"
+                style={{
+                  width: "100%",
+                  minHeight: 70,
+                  background: "rgba(237,230,221,0.04)",
+                  border: 0,
+                  borderRadius: 10,
+                  padding: "10px 12px",
+                  color: "var(--cz-text)",
+                  fontSize: 13,
+                  fontFamily: "inherit",
+                  resize: "vertical",
+                  outline: 0,
+                  transition: "background 0.12s",
+                  boxSizing: "border-box",
+                }}
+                onFocus={e => (e.currentTarget.style.background = "rgba(237,230,221,0.08)")}
+                onBlur={e => (e.currentTarget.style.background = "rgba(237,230,221,0.04)")}
               />
-              <div className="flex items-center justify-between">
-                <p className={`text-xs tabular-nums ${systemPrompt.length >= MAX_SYSTEM_PROMPT_CHARS ? "text-red-400" : "text-zinc-700"}`}>
+              <div style={{ fontSize: 11.5, opacity: 0.45, marginTop: 8, lineHeight: 1.4 }}>
+                Helps every answer fit your situation. Optional.
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
+                <p style={{ fontSize: 11, opacity: systemPrompt.length >= MAX_SYSTEM_PROMPT_CHARS ? 1 : 0.4, color: systemPrompt.length >= MAX_SYSTEM_PROMPT_CHARS ? "#f87171" : "inherit" }}>
                   {systemPrompt.length}/{MAX_SYSTEM_PROMPT_CHARS}
                 </p>
                 <button
                   onClick={saveTemplate}
                   disabled={!systemPrompt.trim()}
-                  className="text-xs text-zinc-500 hover:text-zinc-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  style={{ fontSize: 11.5, opacity: systemPrompt.trim() ? 0.65 : 0.3, background: "transparent", border: 0, color: "inherit", cursor: systemPrompt.trim() ? "pointer" : "not-allowed", fontFamily: "inherit" }}
+                  onMouseEnter={e => { if (systemPrompt.trim()) (e.currentTarget.style.opacity = "1"); }}
+                  onMouseLeave={e => { if (systemPrompt.trim()) (e.currentTarget.style.opacity = "0.65"); }}
                 >
                   Save as template
                 </button>
               </div>
               {templates.length > 0 && (
-                <div>
+                <div style={{ marginTop: 8 }}>
                   <button
                     onClick={() => setShowTemplates(!showTemplates)}
-                    className="text-xs text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer"
+                    style={{ fontSize: 11.5, opacity: 0.65, background: "transparent", border: 0, color: "inherit", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 5, transition: "opacity 0.12s" }}
+                    onMouseEnter={e => (e.currentTarget.style.opacity = "1")}
+                    onMouseLeave={e => (e.currentTarget.style.opacity = "0.65")}
                   >
-                    Templates ({templates.length}) {showTemplates ? "▾" : "▸"}
+                    Templates ({templates.length})
+                    <CaretDown size={11} style={{ transition: "transform 0.2s", transform: showTemplates ? "rotate(180deg)" : "rotate(0deg)" }} />
                   </button>
                   {showTemplates && (
-                    <div className="mt-1.5 space-y-0.5 rounded-xl p-1 bg-zinc-800/50">
+                    <div style={{ marginTop: 6, borderRadius: 10, padding: 4, background: "rgba(237,230,221,0.04)" }} className="animate-expand-in">
                       {templates.map((t) => (
-                        <div
-                          key={t.id}
-                          className="group flex items-center justify-between gap-2 px-2 py-1 rounded-lg hover:bg-zinc-700/50 transition-colors"
-                        >
+                        <div key={t.id} className="group" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "6px 8px", borderRadius: 8 }}>
                           <button
                             onClick={() => loadTemplate(t)}
-                            className="text-xs text-zinc-400 hover:text-zinc-200 truncate flex-1 text-left cursor-pointer"
+                            style={{ fontSize: 12, opacity: 0.65, background: "transparent", border: 0, color: "inherit", cursor: "pointer", flex: 1, textAlign: "left", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}
+                            onMouseEnter={e => (e.currentTarget.style.opacity = "1")}
+                            onMouseLeave={e => (e.currentTarget.style.opacity = "0.65")}
                           >
                             {t.name}
                           </button>
                           <button
                             onClick={() => deleteTemplate(t.id)}
-                            title="Delete template"
-                            className="text-zinc-700 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                            style={{ background: "transparent", border: 0, color: "inherit", padding: 2 }}
+                            onMouseEnter={e => (e.currentTarget.style.color = "#E89B9B")}
+                            onMouseLeave={e => (e.currentTarget.style.color = "inherit")}
                           >
                             <TrashIcon />
                           </button>
@@ -195,42 +279,44 @@ export function AnalysisPanel({
             </div>
           )}
         </div>
+        </div>
 
-        {/* Divider */}
-        <div className="h-px bg-zinc-800/60" />
-
-        {/* Run Analysis — collapsible */}
-        <div>
+        {/* Advanced — collapsible */}
+        <div style={{ paddingTop: 18, paddingBottom: 18, borderBottom: "1px solid rgba(237,230,221,0.06)" }}>
           <button
-            onClick={() => setShowRunAnalysis(!showRunAnalysis)}
-            className="w-full flex items-center justify-between text-xs font-medium text-zinc-500 hover:text-zinc-300 cursor-pointer transition-colors mb-2"
+            onClick={() => setAdvanced(!advanced)}
+            style={{ background: "transparent", border: 0, color: "inherit", fontSize: 12.5, cursor: "pointer", opacity: 0.65, padding: 0, display: "flex", alignItems: "center", gap: 7, fontFamily: "inherit", transition: "opacity 0.12s" }}
+            onMouseEnter={e => (e.currentTarget.style.opacity = "1")}
+            onMouseLeave={e => (e.currentTarget.style.opacity = "0.65")}
           >
-            <div className="flex items-center gap-1.5">
-              <span className="text-amber-500/70"><SparkleIcon /></span>
-              <span>Run Analysis</span>
-            </div>
-            <span className={`transition-transform duration-200 ${showRunAnalysis ? "rotate-180" : ""}`}>
-              <ChevronDownIcon />
-            </span>
+            <Gear size={14} />
+            Advanced
+            <CaretDown size={13} style={{ marginLeft: "auto", transition: "transform 0.2s", transform: advanced ? "rotate(180deg)" : "rotate(0deg)" }} />
           </button>
-
-          {showRunAnalysis && (
-            <div className="space-y-3">
-              {/* Status */}
-              <p className="text-xs text-zinc-600 leading-relaxed">
-                {latestResponses.length === 0
-                  ? "Send a message first."
-                  : `${latestResponses.length} response${latestResponses.length === 1 ? "" : "s"} ready.`}
-              </p>
-
-              {/* Model picker */}
+          {advanced && (
+            <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 12 }} className="animate-expand-in">
+              {/* Model picker for analysis */}
               <div>
-                <p className="text-xs font-medium text-zinc-600 mb-1.5">Model</p>
+                <div style={{ fontSize: 12.5, opacity: 0.65, marginBottom: 8, fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
+                  <Cpu size={13} />
+                  Analysis model
+                </div>
                 <select
                   value={analysisModelId}
                   onChange={(e) => setAnalysisModelId(e.target.value)}
                   disabled={isAnalyzing}
-                  className="bg-zinc-800/70 rounded-xl px-3 py-2 text-sm text-zinc-200 outline-none cursor-pointer w-full transition-all duration-200"
+                  style={{
+                    background: "rgba(237,230,221,0.05)",
+                    border: 0,
+                    color: "var(--cz-text)",
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    fontSize: 12.5,
+                    fontFamily: "inherit",
+                    outline: 0,
+                    width: "100%",
+                    cursor: "pointer",
+                  }}
                 >
                   <optgroup label="★ Premium">
                     {MODELS.filter((m) => isPaid(m.id)).map((m) => (
@@ -249,79 +335,176 @@ export function AnalysisPanel({
                 </select>
                 {(() => {
                   const m = MODELS.find((x) => x.id === analysisModelId);
-                  if (!m) return null;
+                  if (!m || !isPaid(m.id)) return null;
                   return (
-                    <p className="text-xs text-zinc-600 mt-1 font-mono">
-                      {formatUsd(m.pricing.prompt)} in · {formatUsd(m.pricing.completion)} out / 1M
-                    </p>
+                    <div style={{ fontSize: 11, opacity: 0.5, marginTop: 6 }}>
+                      {formatUsd(m.pricing.prompt)} in · {formatUsd(m.pricing.completion)} out / 1M · About 3¢ per use
+                    </div>
                   );
                 })()}
               </div>
-
-              {/* Preset buttons */}
-              <div className="space-y-1">
-                {Object.entries(ANALYSES).map(([key, a]) => {
-                  const needsSystem = key === "adherence";
-                  const disabled = !canAnalyze || (needsSystem && !systemPrompt.trim());
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => handleAnalysis(key as keyof typeof ANALYSES)}
-                      disabled={disabled}
-                      title={needsSystem && !systemPrompt.trim() ? "Set a system prompt first" : undefined}
-                      className={`w-full text-left px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer group ${
-                        disabled
-                          ? "opacity-30 cursor-not-allowed"
-                          : "bg-zinc-800/40 hover:bg-amber-950/30"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-zinc-300 group-hover:text-amber-200 transition-colors">
-                          {a.name}
-                        </span>
-                        {key === "synthesize" && (
-                          <span className="text-[9px] text-amber-500 font-bold">★</span>
-                        )}
-                      </div>
-                      <p className="text-xs text-zinc-600 mt-0.5 group-hover:text-zinc-500">{a.blurb}</p>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Custom */}
-              <div>
-                <textarea
-                  value={analysisPrompt}
-                  onChange={(e) => setAnalysisPrompt(e.target.value)}
-                  placeholder="Ask anything about the responses..."
-                  rows={3}
-                  disabled={isAnalyzing}
-                  className="bg-zinc-800/60 rounded-xl p-3 text-sm text-zinc-200 placeholder-zinc-600 outline-none resize-none transition-all duration-200 w-full"
-                />
-                <button
-                  onClick={() => handleAnalysis("custom", analysisPrompt)}
-                  disabled={!canAnalyze || !analysisPrompt.trim()}
-                  className="mt-1.5 w-full text-sm px-3 py-2.5 rounded-xl bg-zinc-800/40 hover:bg-amber-950/30 hover:text-amber-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 cursor-pointer text-zinc-300 font-medium"
-                >
-                  {isAnalyzing ? "Running..." : "Run custom"}
-                </button>
-              </div>
-
-              {isAnalyzing && (
-                <div className="flex gap-1.5 items-center">
-                  {[0, 150, 300].map((delay) => (
-                    <div
-                      key={delay}
-                      className="w-1.5 h-1.5 bg-amber-600 rounded-full animate-bounce"
-                      style={{ animationDelay: `${delay}ms` }}
-                    />
-                  ))}
-                  <span className="text-xs text-zinc-500 ml-1">Analyzing...</span>
-                </div>
-              )}
             </div>
           )}
+        </div>
+        </div>
+
+        {/* What would you like to do? */}
+        <div style={{ paddingTop: 18, paddingBottom: 18, borderBottom: "1px solid rgba(237,230,221,0.06)" }}>
+          <div style={{ fontSize: 11.5, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10, fontWeight: 500 }}>
+            What would you like to do?
+          </div>
+
+          {latestResponses.length === 0 ? (
+            <p style={{ fontSize: 12, opacity: 0.4 }}>Send a message first.</p>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              {COZY_ACTIONS.map((a) => {
+                const disabled = !canAnalyze || isAnalyzing;
+                return (
+                  <button
+                    key={a.key}
+                    onClick={() => !disabled && handleAnalysis(a.key)}
+                    disabled={disabled}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 8,
+                      background: a.primary ? "var(--cz-accent-soft)" : "rgba(237,230,221,0.04)",
+                      border: 0,
+                      color: "inherit",
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      cursor: disabled ? "not-allowed" : "pointer",
+                      textAlign: "left",
+                      fontFamily: "inherit",
+                      opacity: disabled ? 0.4 : 1,
+                      transition: "background 0.12s",
+                    }}
+                    onMouseEnter={e => {
+                      if (!disabled) {
+                        (e.currentTarget as HTMLElement).style.background = a.primary
+                          ? "rgba(168,181,160,0.2)"
+                          : "rgba(237,230,221,0.08)";
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (!disabled) {
+                        (e.currentTarget as HTMLElement).style.background = a.primary
+                          ? "var(--cz-accent-soft)"
+                          : "rgba(237,230,221,0.04)";
+                      }
+                    }}
+                  >
+                    <span style={{ fontSize: 16, flexShrink: 0 }}>{a.emoji}</span>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: a.primary ? "var(--cz-accent)" : "inherit" }}>
+                        {a.label}
+                      </div>
+                      <div style={{ fontSize: 11, opacity: 0.55, marginTop: 1 }}>{a.sub}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Custom analysis */}
+          <div style={{ marginTop: 10 }}>
+            <textarea
+              value={analysisPrompt}
+              onChange={(e) => setAnalysisPrompt(e.target.value)}
+              placeholder="Or ask anything about the responses…"
+              rows={2}
+              disabled={isAnalyzing}
+              style={{
+                width: "100%",
+                background: "rgba(237,230,221,0.04)",
+                border: 0,
+                borderRadius: 10,
+                padding: "10px 12px",
+                color: "var(--cz-text)",
+                fontSize: 13,
+                fontFamily: "inherit",
+                resize: "none",
+                outline: 0,
+                boxSizing: "border-box",
+                transition: "background 0.12s",
+              }}
+              onFocus={e => (e.currentTarget.style.background = "rgba(237,230,221,0.08)")}
+              onBlur={e => (e.currentTarget.style.background = "rgba(237,230,221,0.04)")}
+            />
+            <button
+              onClick={() => handleAnalysis("custom", analysisPrompt)}
+              disabled={!canAnalyze || !analysisPrompt.trim() || isAnalyzing}
+              style={{
+                marginTop: 6,
+                width: "100%",
+                fontSize: 13,
+                fontWeight: 500,
+                padding: "9px 14px",
+                borderRadius: 10,
+                border: 0,
+                cursor: !canAnalyze || !analysisPrompt.trim() || isAnalyzing ? "not-allowed" : "pointer",
+                color: "inherit",
+                background: "rgba(237,230,221,0.04)",
+                opacity: !canAnalyze || !analysisPrompt.trim() ? 0.35 : 1,
+                transition: "background 0.12s",
+                fontFamily: "inherit",
+              }}
+              onMouseEnter={e => { if (canAnalyze && analysisPrompt.trim() && !isAnalyzing) (e.currentTarget as HTMLElement).style.background = "rgba(237,230,221,0.08)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(237,230,221,0.04)"; }}
+            >
+              {isAnalyzing ? "Running…" : "Run custom"}
+            </button>
+          </div>
+
+          {isAnalyzing && (
+            <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 10 }}>
+              {[0, 150, 300].map((delay) => (
+                <div
+                  key={delay}
+                  className="rounded-full animate-bounce"
+                  style={{ width: 6, height: 6, background: "var(--cz-accent)", animationDelay: `${delay}ms` }}
+                />
+              ))}
+              <span style={{ fontSize: 12, opacity: 0.5, marginLeft: 4 }}>Analyzing…</span>
+            </div>
+          )}
+        </div>
+        </div>
+
+        {/* Tip box */}
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            background: "rgba(237,230,221,0.04)",
+            borderRadius: 10,
+            padding: 12,
+            marginTop: "auto",
+          }}
+        >
+          <span style={{ fontSize: 18 }}>💡</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 3 }}>New here?</div>
+            <div style={{ fontSize: 11.5, opacity: 0.7, lineHeight: 1.5, minHeight: 44 }}>
+              {TIPS[tipIndex]}
+            </div>
+            <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
+              {TIPS.map((_, i) => (
+                <div
+                  key={i}
+                  style={{
+                    width: 4,
+                    height: 4,
+                    borderRadius: "50%",
+                    background: i === tipIndex ? "var(--cz-accent)" : "rgba(237,230,221,0.2)",
+                    transition: "background 0.3s",
+                  }}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </aside>

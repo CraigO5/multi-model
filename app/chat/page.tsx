@@ -1059,7 +1059,8 @@ ${latestResponses
   // ─── Unified layout ───────────────────────────────────────────────────────
   return (
     <div
-      className="h-screen bg-zinc-950 text-zinc-100 flex overflow-hidden"
+      className="h-screen flex overflow-hidden"
+      style={{ background: "var(--cz-bg)", color: "var(--cz-text)" }}
       onClick={() => isSplit && setSwapSlot(null)}
     >
       <Sidebar {...sidebarProps} />

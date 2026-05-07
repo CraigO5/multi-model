@@ -1,20 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --cz-bg: #0A0909;
+  --cz-surface: #0F0E0F;
+  --cz-text: #EDE6DD;
+  --cz-accent: #6BCF7F;
+  --cz-accent-soft: rgba(107, 207, 127, 0.13);
+  --background: #0A0909;
+  --foreground: #EDE6DD;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
@@ -80,6 +78,40 @@ body {
   animation: cursor-blink 0.8s ease-in-out infinite;
 }
 
+@keyframes expand-in {
+  from {
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+    overflow: visible;
+  }
+}
+
+@keyframes collapse-out {
+  from {
+    opacity: 1;
+    max-height: 500px;
+    overflow: hidden;
+  }
+  to {
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+  }
+}
+
+.animate-expand-in {
+  animation: expand-in 0.25s ease-out both;
+}
+
+.animate-collapse-out {
+  animation: collapse-out 0.2s ease-in both;
+}
+
 @media (max-width: 640px) {
   [data-sidebar] {
     display: none;
@@ -89,7 +121,7 @@ body {
 /* Smooth scrollbar */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #27272a transparent;
+  scrollbar-color: rgba(237, 230, 221, 0.1) transparent;
 }
 
 /* Focus ring for inputs */
@@ -107,8 +139,8 @@ input[type="range"] {
 
 /* Selection */
 ::selection {
-  background: rgb(99 102 241 / 0.3);
-  color: #e2e8f0;
+  background: rgba(168, 181, 160, 0.25);
+  color: #EDE6DD;
 }
 
 /* Improved table in markdown */
