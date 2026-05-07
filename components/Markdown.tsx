@@ -49,7 +49,7 @@ export function Markdown({ content }: { content: string }) {
             if (isInline) {
               return (
                 <code
-                  className="bg-zinc-800 text-zinc-200 px-1 py-0.5 rounded text-[0.85em] font-mono"
+                  className="bg-zinc-800 text-indigo-300 px-1.5 py-0.5 rounded-md text-[0.82em] font-mono"
                   {...props}
                 >
                   {children}
@@ -63,12 +63,12 @@ export function Markdown({ content }: { content: string }) {
             );
           },
           pre: ({ children }) => (
-            <pre className="bg-zinc-900 border border-zinc-800 rounded-lg p-3 my-2 overflow-x-auto text-xs">
+            <pre className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 my-3 overflow-x-auto text-xs leading-relaxed">
               {children}
             </pre>
           ),
           blockquote: ({ children }) => (
-            <blockquote className="border-l-2 border-zinc-700 pl-3 my-2 text-zinc-400 italic">
+            <blockquote className="border-l-2 border-indigo-700/50 pl-4 my-3 text-zinc-400 italic bg-indigo-950/10 py-1 rounded-r-lg">
               {children}
             </blockquote>
           ),
@@ -76,19 +76,21 @@ export function Markdown({ content }: { content: string }) {
             <strong className="font-semibold text-zinc-100">{children}</strong>
           ),
           em: ({ children }) => <em className="italic">{children}</em>,
-          hr: () => <hr className="border-zinc-800 my-3" />,
+          hr: () => <hr className="border-zinc-800/60 my-4" />,
           table: ({ children }) => (
-            <div className="overflow-x-auto my-2">
-              <table className="text-xs border-collapse">{children}</table>
+            <div className="overflow-x-auto my-3 rounded-lg border border-zinc-800">
+              <table className="text-xs border-collapse w-full">{children}</table>
             </div>
           ),
           th: ({ children }) => (
-            <th className="border border-zinc-800 px-2 py-1 bg-zinc-900 text-left font-semibold">
+            <th className="border-b border-zinc-800 px-3 py-2 bg-zinc-900 text-left text-[11px] font-semibold text-zinc-300 uppercase tracking-wide">
               {children}
             </th>
           ),
           td: ({ children }) => (
-            <td className="border border-zinc-800 px-2 py-1">{children}</td>
+            <td className="border-b border-zinc-800/60 px-3 py-2 text-zinc-300 last-of-type:border-b-0">
+              {children}
+            </td>
           ),
         }}
       >

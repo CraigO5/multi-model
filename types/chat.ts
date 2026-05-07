@@ -36,3 +36,11 @@ export type Chat = {
   createdAt: number;
   updatedAt: number;
 };
+
+export type Slot = {
+  modelId: string;
+  preSplitMessages: ChatMessage[];
+  postSplitMessages: ChatMessage[];
+  input: string;
+  isLoading: boolean;
+};

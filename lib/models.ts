@@ -72,3 +72,6 @@ export const USD_PER_CREDIT = 0.0001;
 export const DAILY_LIMIT_USD = 0.25;
 export const DAILY_LIMIT_CREDITS = DAILY_LIMIT_USD / USD_PER_CREDIT;
 export const MAX_TOKENS_PER_RESPONSE = 1000;
+export const MAX_HISTORY_MESSAGES = 20; // last ~10 exchanges sent to API
+export const MAX_INPUT_CHARS = 1000; // user message character cap
+export const MAX_SYSTEM_PROMPT_CHARS = 2000; // system prompt character cap
