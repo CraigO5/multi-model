@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Chat, ChatMessage, Model, PromptTemplate, Slot } from "@/types/chat";
 import { MODELS, MAX_HISTORY_MESSAGES, MAX_INPUT_CHARS } from "@/lib/models";
 import {
@@ -63,6 +63,7 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loadedChatIds, setLoadedChatIds] = useState<Set<string>>(new Set());
   const [trialCount, setTrialCount] = useState(0);
+  const [role, setRole] = useState<"free" | "pro" | "dev">("free");
   const [lockedFeature, setLockedFeature] = useState<string | null>(null);
 
   // Streaming content: modelId → partial content during streaming
@@ -75,8 +76,6 @@ export default function Home() {
   // Abort controllers for in-flight requests
   const abortControllerRef = useRef<AbortController | null>(null);
   const slotAbortRefs = useRef<(AbortController | null)[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [tick, setTick] = useState(0);
 
   // ─── Derived ─────────────────────────────────────────────────────────────
   const activeChat = chats.find((c) => c.id === activeChatId) ?? null;
@@ -138,7 +137,7 @@ export default function Home() {
     latestResponses.length >= 1 && !isAnalyzing && !isLoading && !overLimit;
 
   // ─── Analytics ────────────────────────────────────────────────────────────
-  const analytics = (() => {
+  const analytics = useMemo(() => {
     const stats: Record<
       string,
       {
@@ -201,9 +200,9 @@ export default function Home() {
         };
       })
       .sort((a, b) => b.responses - a.responses);
-  })();
+  }, [chats]);
 
-  const analyticsTotals = analytics.reduce(
+  const analyticsTotals = useMemo(() => analytics.reduce(
     (acc, s) => ({
       responses: acc.responses + s.responses,
       errors: acc.errors + s.errors,
@@ -211,13 +210,13 @@ export default function Home() {
       tokens: acc.tokens + s.totalTokens,
     }),
     { responses: 0, errors: 0, cost: 0, tokens: 0 },
-  );
+  ), [analytics]);
 
-  const bestSpeed = [...analytics].sort((a, b) => a.avgLatencyMs - b.avgLatencyMs)[0]?.id;
-  const cheapest = [...analytics].sort((a, b) => a.avgCost - b.avgCost)[0]?.id;
+  const bestSpeed = useMemo(() => [...analytics].sort((a, b) => a.avgLatencyMs - b.avgLatencyMs)[0]?.id, [analytics]);
+  const cheapest = useMemo(() => [...analytics].sort((a, b) => a.avgCost - b.avgCost)[0]?.id, [analytics]);
   const mostUsed = analytics[0]?.id;
 
-  const chartSeries = (() => {
+  const chartSeries = useMemo(() => {
     const series: Record<string, number[]> = {};
     chats.forEach((chat) => {
       chat.messages.forEach((m) => {
@@ -236,10 +235,10 @@ export default function Home() {
       });
     });
     return series;
-  })();
+  }, [chats, chartMetric]);
 
-  const chartMaxIdx = Math.max(1, ...Object.values(chartSeries).map((s) => s.length));
-  const chartMaxVal = Math.max(1, ...Object.values(chartSeries).flat());
+  const chartMaxIdx = useMemo(() => Math.max(1, ...Object.values(chartSeries).map((s) => s.length)), [chartSeries]);
+  const chartMaxVal = useMemo(() => Math.max(1, ...Object.values(chartSeries).flat()), [chartSeries]);
 
   // ─── localStorage hydration (preferences only) ───────────────────────────
   useEffect(() => {
@@ -267,9 +266,6 @@ export default function Home() {
       console.error("Failed to load from localStorage:", e);
     }
     setHydrated(true);
-
-    const id = setInterval(() => setTick((t) => t + 1), 30_000);
-    return () => clearInterval(id);
   }, []);
 
   // ─── API hydration ────────────────────────────────────────────────────────
@@ -287,6 +283,9 @@ export default function Home() {
       } else if (typeof data?.balance === "number") {
         setCredits(data.balance);
         console.log("[refreshCredits] set credits =", data.balance);
+      }
+      if (data?.role === "pro" || data?.role === "dev" || data?.role === "free") {
+        setRole(data.role);
       }
     } catch (e) {
       console.error("[refreshCredits] error", e);
@@ -461,10 +460,18 @@ export default function Home() {
     onChunk: (delta: string) => void,
   ): Promise<{ usage: { promptTokens: number; completionTokens: number } }> => {
     const customApiKey = localStorage.getItem("mm_api_key") ?? undefined;
+    const responseLength = localStorage.getItem("mm_response_length") ?? undefined;
     const response = await fetch("/api/openrouter", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: msgs, model: modelId, prompt, temperature, ...(customApiKey ? { apiKey: customApiKey } : {}) }),
+      body: JSON.stringify({
+        messages: msgs,
+        model: modelId,
+        prompt,
+        temperature,
+        ...(customApiKey ? { apiKey: customApiKey } : {}),
+        ...(responseLength ? { responseLength } : {}),
+      }),
       signal,
     });
     if (!response.ok) {
@@ -479,7 +486,8 @@ export default function Home() {
       }
       throw new Error(`HTTP ${response.status}`);
     }
-    const reader = response.body!.getReader();
+    if (!response.body) throw new Error("NO_RESPONSE_BODY");
+    const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
     let usage = { promptTokens: 0, completionTokens: 0 };
@@ -1120,6 +1128,7 @@ ${latestResponses
     trialLimit: TRIAL_LIMIT,
     isOpen: sidebarOpen,
     onClose: () => setSidebarOpen(false),
+    role,
   };
 
   const handleSetBlindMode = (v: boolean) => {
@@ -1154,6 +1163,7 @@ ${latestResponses
     saveTemplate,
     loadTemplate,
     deleteTemplate,
+    role,
   };
 
   // ─── Unified layout ───────────────────────────────────────────────────────

@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, createContext, useContext } from "react";
 import type { ChatMessage, PromptTemplate } from "@/types/chat";
-import { MAX_SYSTEM_PROMPT_CHARS } from "@/lib/models";
+import { MAX_SYSTEM_PROMPT_CHARS, RESPONSE_LENGTHS, DEFAULT_RESPONSE_LENGTH, type ResponseLength } from "@/lib/models";
 import { ANALYSES } from "@/lib/utils";
 import { TrashIcon } from "@/components/icons";
 import { MODELS } from "@/lib/models";
 import { isPaid, isProModel } from "@/lib/utils";
-import { type Icon, Trophy, Checks, FlowArrow, ListBullets, X as PhX, ChartLineUp, SlidersHorizontal, Textbox, CaretDown, Cpu, Lock } from "@phosphor-icons/react";
+import { type Icon, Trophy, Checks, FlowArrow, ListBullets, X as PhX, ChartLineUp, SlidersHorizontal, Textbox, CaretDown, Cpu, Lock, ArrowsOutLineVertical } from "@phosphor-icons/react";
 import { UpgradeModal } from "@/components/UpgradeModal";
 
 type Props = {
@@ -32,6 +32,7 @@ type Props = {
   saveTemplate: () => void;
   loadTemplate: (t: PromptTemplate) => void;
   deleteTemplate: (id: string) => void;
+  role: "free" | "pro" | "dev";
 };
 
 const COZY_ACTIONS: { key: "pickwinner" | "synthesize" | "tldr" | "factcheck"; Icon: Icon; label: string; sub: string; emoji: string; primary?: boolean }[] = [
@@ -66,8 +67,8 @@ function AnalysisModelPicker({
   const currentModel = MODELS.find((m) => m.id === analysisModelId);
 
   useEffect(() => {
-    if (!open) return;
     const handler = (e: MouseEvent) => {
+      if (!open) return;
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener("mousedown", handler);
@@ -193,8 +194,11 @@ function AnalysisModelPicker({
   );
 }
 
-// Stub: replace with real plan check once billing is live
-const useIsPro = () => false;
+const RoleContext = createContext<"free" | "pro" | "dev">("free");
+const useIsPro = () => {
+  const r = useContext(RoleContext);
+  return r === "pro" || r === "dev";
+};
 
 function ApiKeySection({ onOpenUpgrade }: { onOpenUpgrade: () => void }) {
   const isPro = useIsPro();
@@ -384,6 +388,106 @@ function ApiKeySection({ onOpenUpgrade }: { onOpenUpgrade: () => void }) {
   );
 }
 
+function ResponseLengthSection({ onOpenUpgrade }: { onOpenUpgrade: () => void }) {
+  const isPro = useIsPro();
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<ResponseLength>(DEFAULT_RESPONSE_LENGTH);
+
+  useEffect(() => {
+    const v = localStorage.getItem("mm_response_length");
+    if (v && v in RESPONSE_LENGTHS) setSelected(v as ResponseLength);
+  }, []);
+
+  const choose = (key: ResponseLength) => {
+    setSelected(key);
+    localStorage.setItem("mm_response_length", key);
+    window.dispatchEvent(new Event("mm_response_length_changed"));
+  };
+
+  if (!isPro) {
+    return (
+      <div style={{ paddingTop: 18, paddingBottom: 18, borderBottom: "1px solid rgba(237,230,221,0.06)" }}>
+        <button
+          onClick={onOpenUpgrade}
+          style={{
+            width: "100%", background: "transparent", border: 0, color: "inherit", fontSize: 12.5, fontWeight: 500,
+            cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 7,
+            fontFamily: "inherit", transition: "opacity 0.12s", opacity: 0.55,
+          }}
+          onMouseEnter={e => (e.currentTarget.style.opacity = "1")}
+          onMouseLeave={e => (e.currentTarget.style.opacity = "0.55")}
+        >
+          <ArrowsOutLineVertical size={14} />
+          Response length
+          <span style={{ marginLeft: 4, display: "flex", alignItems: "center", gap: 4, fontSize: 10, background: "rgba(107,207,127,0.08)", border: "1px solid rgba(107,207,127,0.2)", color: "var(--cz-accent)", padding: "2px 7px", borderRadius: 99, fontWeight: 700, letterSpacing: "0.04em" }}>
+            <Lock size={9} weight="bold" />
+            PRO
+          </span>
+          <span style={{ marginLeft: "auto", fontSize: 11, opacity: 0.5 }}>Upgrade</span>
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ paddingTop: 18, paddingBottom: 18, borderBottom: "1px solid rgba(237,230,221,0.06)" }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{ background: "transparent", border: 0, color: "inherit", fontSize: 12.5, fontWeight: 500, cursor: "pointer", opacity: 0.65, padding: 0, display: "flex", alignItems: "center", gap: 7, fontFamily: "inherit", transition: "opacity 0.12s", width: "100%" }}
+        onMouseEnter={e => (e.currentTarget.style.opacity = "1")}
+        onMouseLeave={e => (e.currentTarget.style.opacity = "0.65")}
+      >
+        <ArrowsOutLineVertical size={14} />
+        Response length
+        <span style={{ marginLeft: 4, fontSize: 10, background: "rgba(237,230,221,0.06)", color: "rgba(237,230,221,0.65)", padding: "2px 7px", borderRadius: 99, fontWeight: 600 }}>
+          {RESPONSE_LENGTHS[selected].label}
+        </span>
+        <CaretDown size={16} weight="bold" style={{ marginLeft: "auto", transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0deg)", opacity: 0.8 }} />
+      </button>
+
+      {open && (
+        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 4 }} className="animate-expand-in">
+          {(Object.keys(RESPONSE_LENGTHS) as ResponseLength[]).map((key) => {
+            const cfg = RESPONSE_LENGTHS[key];
+            const isSelected = key === selected;
+            return (
+              <button
+                key={key}
+                onClick={() => choose(key)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10, width: "100%",
+                  padding: "9px 11px", borderRadius: 8, border: 0, fontFamily: "inherit",
+                  background: isSelected ? "var(--cz-accent-soft)" : "rgba(237,230,221,0.04)",
+                  color: "inherit", cursor: "pointer", textAlign: "left",
+                  transition: "background 0.12s",
+                }}
+                onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = "rgba(237,230,221,0.08)"; }}
+                onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = "rgba(237,230,221,0.04)"; }}
+              >
+                <div style={{ width: 12, height: 12, borderRadius: "50%", border: `1.5px solid ${isSelected ? "var(--cz-accent)" : "rgba(237,230,221,0.3)"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  {isSelected && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--cz-accent)" }} />}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: isSelected ? "var(--cz-accent)" : "inherit" }}>
+                    {cfg.label}
+                    <span style={{ fontSize: 10, opacity: 0.45, fontWeight: 500, marginLeft: 6 }}>
+                      ~{cfg.maxTokens.toLocaleString()} tokens
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, opacity: 0.55, marginTop: 1 }}>{cfg.hint}</div>
+                </div>
+              </button>
+            );
+          })}
+          <div style={{ fontSize: 11, opacity: 0.4, marginTop: 4, lineHeight: 1.45 }}>
+            Longer responses cost more credits per request.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AnalysisPanel({
   latestResponses,
   canAnalyze,
@@ -406,6 +510,7 @@ export function AnalysisPanel({
   saveTemplate,
   loadTemplate,
   deleteTemplate,
+  role,
 }: Props) {
   const [showContext, setShowContext] = useState(false);
   const [tipIndex, setTipIndex] = useState(0);
@@ -434,7 +539,7 @@ export function AnalysisPanel({
       : "translateY(100%)";
 
   return (
-    <>
+    <RoleContext.Provider value={role}>
       {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} />}
 
       {/* Backdrop */}
@@ -528,6 +633,9 @@ export function AnalysisPanel({
 
           {/* API Key */}
           <ApiKeySection onOpenUpgrade={() => { close(); setShowUpgrade(true); }} />
+
+          {/* Response length */}
+          <ResponseLengthSection onOpenUpgrade={() => { close(); setShowUpgrade(true); }} />
 
           {/* Context / system prompt */}
           <div style={{ paddingTop: 18, paddingBottom: 18, borderBottom: "1px solid rgba(237,230,221,0.06)" }}>
@@ -753,6 +861,6 @@ export function AnalysisPanel({
           </div>
         </div>
       </aside>
-    </>
+    </RoleContext.Provider>
   );
 }

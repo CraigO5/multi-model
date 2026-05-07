@@ -34,6 +34,7 @@ type Props = {
   trialLimit: number;
   isOpen: boolean;
   onClose: () => void;
+  role: "free" | "pro" | "dev";
 };
 
 export function Sidebar({
@@ -52,7 +53,9 @@ export function Sidebar({
   trialLimit,
   isOpen,
   onClose,
+  role,
 }: Props) {
+  const isPro = role === "pro" || role === "dev";
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
   const [collapsed, setCollapsed] = useState(false);
@@ -380,31 +383,47 @@ export function Sidebar({
                 </div>
               </div>
 
-              {/* Upgrade button */}
-              <button
-                onClick={() => setShowUpgrade(true)}
-                className="w-full mt-2 flex items-center justify-center gap-2 rounded-lg text-[12.5px] font-semibold transition-all duration-150 cursor-pointer"
-                style={{
-                  padding: "9px 14px",
-                  background: "linear-gradient(135deg, rgba(107,207,127,0.15) 0%, rgba(107,207,127,0.08) 100%)",
-                  border: "1px solid rgba(107,207,127,0.25)",
-                  color: "var(--cz-accent)",
-                  boxShadow: "0 0 16px rgba(107,207,127,0.08)",
-                }}
-                onMouseEnter={e => {
-                  (e.currentTarget.style.background = "linear-gradient(135deg, rgba(107,207,127,0.22) 0%, rgba(107,207,127,0.13) 100%)");
-                  (e.currentTarget.style.boxShadow = "0 0 24px rgba(107,207,127,0.18)");
-                  (e.currentTarget.style.borderColor = "rgba(107,207,127,0.45)");
-                }}
-                onMouseLeave={e => {
-                  (e.currentTarget.style.background = "linear-gradient(135deg, rgba(107,207,127,0.15) 0%, rgba(107,207,127,0.08) 100%)");
-                  (e.currentTarget.style.boxShadow = "0 0 16px rgba(107,207,127,0.08)");
-                  (e.currentTarget.style.borderColor = "rgba(107,207,127,0.25)");
-                }}
-              >
-                <span style={{ fontSize: 13 }}>✦</span>
-                Upgrade to Pro
-              </button>
+              {/* Upgrade button (only for free users) */}
+              {isPro ? (
+                <div
+                  className="w-full mt-2 flex items-center justify-center gap-2 rounded-lg text-[12px] font-semibold"
+                  style={{
+                    padding: "8px 14px",
+                    background: "rgba(107,207,127,0.08)",
+                    border: "1px solid rgba(107,207,127,0.2)",
+                    color: "var(--cz-accent)",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  <span style={{ fontSize: 13 }}>✦</span>
+                  {role === "dev" ? "DEV" : "PRO"}
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowUpgrade(true)}
+                  className="w-full mt-2 flex items-center justify-center gap-2 rounded-lg text-[12.5px] font-semibold transition-all duration-150 cursor-pointer"
+                  style={{
+                    padding: "9px 14px",
+                    background: "linear-gradient(135deg, rgba(107,207,127,0.15) 0%, rgba(107,207,127,0.08) 100%)",
+                    border: "1px solid rgba(107,207,127,0.25)",
+                    color: "var(--cz-accent)",
+                    boxShadow: "0 0 16px rgba(107,207,127,0.08)",
+                  }}
+                  onMouseEnter={e => {
+                    (e.currentTarget.style.background = "linear-gradient(135deg, rgba(107,207,127,0.22) 0%, rgba(107,207,127,0.13) 100%)");
+                    (e.currentTarget.style.boxShadow = "0 0 24px rgba(107,207,127,0.18)");
+                    (e.currentTarget.style.borderColor = "rgba(107,207,127,0.45)");
+                  }}
+                  onMouseLeave={e => {
+                    (e.currentTarget.style.background = "linear-gradient(135deg, rgba(107,207,127,0.15) 0%, rgba(107,207,127,0.08) 100%)");
+                    (e.currentTarget.style.boxShadow = "0 0 16px rgba(107,207,127,0.08)");
+                    (e.currentTarget.style.borderColor = "rgba(107,207,127,0.25)");
+                  }}
+                >
+                  <span style={{ fontSize: 13 }}>✦</span>
+                  Upgrade to Pro
+                </button>
+              )}
             </div>
 
             {showUpgrade && createPortal(<UpgradeModal onClose={() => setShowUpgrade(false)} />, document.body)}

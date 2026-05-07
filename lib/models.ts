@@ -115,6 +115,16 @@ export const USD_PER_CREDIT = 0.0001;
 export const DAILY_LIMIT_USD = 0.25;
 export const DAILY_LIMIT_CREDITS = DAILY_LIMIT_USD / USD_PER_CREDIT;
 export const MAX_TOKENS_PER_RESPONSE = 1000;
+
+// Pro-only response length presets. Free users are pinned to DEFAULT_RESPONSE_LENGTH.
+export const RESPONSE_LENGTHS = {
+  short:  { label: "Short",      maxTokens: 300,  hint: "~1 short paragraph",     targetWords: "around 80–150 words" },
+  medium: { label: "Medium",     maxTokens: 1000, hint: "Default — balanced",     targetWords: "around 300–500 words" },
+  long:   { label: "Long",       maxTokens: 2500, hint: "Detailed answers",        targetWords: "around 800–1,200 words" },
+  xlong:  { label: "Extra long", maxTokens: 4000, hint: "Comprehensive write-ups", targetWords: "1,500+ words" },
+} as const;
+export type ResponseLength = keyof typeof RESPONSE_LENGTHS;
+export const DEFAULT_RESPONSE_LENGTH: ResponseLength = "medium";
 export const MAX_HISTORY_MESSAGES = 20; // last ~10 exchanges sent to API
 export const MAX_INPUT_CHARS = 1000; // user message character cap
 export const MAX_SYSTEM_PROMPT_CHARS = 2000; // system prompt character cap

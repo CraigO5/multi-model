@@ -40,9 +40,16 @@ export async function getTrialCount(anonId: string): Promise<number> {
  * Check whether the trial is still available (count < TRIAL_LIMIT).
  * Does NOT increment. Used by /api/openrouter to block exhausted users.
  */
+/**
+ * Read-only allowance check used by /api/openrouter as a backstop.
+ * /api/trial/use is the source of truth for incrementing — it atomically
+ * bumps count from N → N+1 and rejects when count >= TRIAL_LIMIT. By the
+ * time openrouter is called for this send, count is already at the *new*
+ * value, so allow when count <= TRIAL_LIMIT (off-by-one fix).
+ */
 export async function checkTrialAllowed(anonId: string): Promise<boolean> {
   const rows = await db.select({ count: trialUsage.count }).from(trialUsage).where(eq(trialUsage.anonId, anonId)).limit(1);
-  return (rows[0]?.count ?? 0) < TRIAL_LIMIT;
+  return (rows[0]?.count ?? 0) <= TRIAL_LIMIT;
 }
 
 /**

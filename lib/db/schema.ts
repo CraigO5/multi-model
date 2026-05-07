@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, integer, real, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, integer, real, timestamp, index } from "drizzle-orm/pg-core";
 
 export const userCredits = pgTable("user_credits", {
   userId: text("user_id").primaryKey(),
@@ -26,7 +26,9 @@ export const messages = pgTable("messages", {
   cost: real("cost"),
   latencyMs: integer("latency_ms"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => ({
+  chatIdIdx: index("messages_chat_id_idx").on(t.chatId),
+}));
 
 export const templates = pgTable("templates", {
   id: text("id").primaryKey(),
