@@ -21,6 +21,7 @@ import {
   SliderIcon,
   StarIcon,
 } from "@/components/icons";
+import { GridFour } from "@phosphor-icons/react";
 import { RateLimitMessage } from "@/components/RateLimitMessage";
 
 type Props = {
@@ -121,6 +122,7 @@ export function ChatView({
 }: Props) {
   const [chosenByRound, setChosenByRound] = useState<Map<number, number>>(new Map());
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [sideBySide, setSideBySide] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -175,12 +177,6 @@ export function ChatView({
     setTimeout(() => setCopiedIdx(null), 1500);
   };
 
-  const isFirstAssistantInRound = (i: number): boolean => {
-    const msg = messages[i];
-    if (msg.role !== "assistant" || msg.synthesis) return false;
-    const prev = messages[i - 1];
-    return !prev || prev.role === "user" || !!prev.synthesis;
-  };
 
   const pillBase: React.CSSProperties = {
     background: "transparent",
@@ -273,6 +269,19 @@ export function ChatView({
             </span>
             <span style={{ fontSize: 12 }}>{models.length} AIs</span>
           </button>
+
+          {messages.length > 0 && models.length > 1 && !blindMode && (
+            <button
+              onClick={() => setSideBySide(!sideBySide)}
+              title={sideBySide ? "Stack responses" : "Show responses side by side"}
+              style={sideBySide ? pillOn : pillBase}
+              onMouseEnter={e => { if (!sideBySide) { (e.currentTarget as HTMLElement).style.background = "rgba(237,230,221,0.06)"; (e.currentTarget as HTMLElement).style.opacity = "1"; } }}
+              onMouseLeave={e => { if (!sideBySide) { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.opacity = "0.65"; } }}
+            >
+              <GridFour size={14} />
+              <span className="hidden lg:inline">Side by side</span>
+            </button>
+          )}
 
           {messages.length > 0 && models.length > 1 && !blindMode && (
             <button
@@ -383,10 +392,10 @@ export function ChatView({
       </div>
 
       {/* ── Messages feed ── */}
-      <div ref={unifiedScrollRef} className="flex-1 overflow-y-auto">
-        <div style={{ padding: "14px 32px 24px", display: "flex", flexDirection: "column", gap: 22, maxWidth: 760, width: "100%", margin: "0 auto" }}>
+      <div ref={unifiedScrollRef} className="flex-1 overflow-y-auto" style={{ display: "flex", flexDirection: "column" }}>
+        <div style={{ padding: "14px 32px 24px", display: "flex", flexDirection: "column", gap: 22, maxWidth: sideBySide ? "100%" : 760, width: "100%", margin: "0 auto", flex: 1 }}>
           {messages.length === 0 && Object.keys(streamingContent).length === 0 && (
-            <div className="mt-20 select-none flex flex-col items-center gap-5">
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 20 }}>
               <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
                 {models.map((m) => {
                   const meta = MODELS.find((x) => x.id === m.id);
@@ -394,84 +403,73 @@ export function ChatView({
                   return <ModelIcon key={m.id} model={meta as { icon: string; color: string; name: string; initial: string }} size={38} />;
                 })}
               </div>
-              <p className="text-sm" style={{ opacity: 0.35 }}>
+              <p className="text-sm select-none" style={{ opacity: 0.35 }}>
                 Ask anything — all {models.length} AI{models.length !== 1 ? "s" : ""} will answer at once.
               </p>
             </div>
           )}
 
-          {messages.map((message, i) => {
-            const meta = message.model ? MODELS.find((m) => m.id === message.model) : null;
+          {(() => {
+            const renderMessageCard = (message: ChatMessage, i: number, compact?: boolean) => {
+              const meta = message.model ? MODELS.find((m) => m.id === message.model) : null;
+              const isBlindTarget = blindMode && message.role === "assistant" && !message.synthesis && !!message.model;
+              const blindInfo = isBlindTarget ? msgBlindInfo.get(i) : undefined;
+              const roundChosenIdx = blindInfo ? chosenByRound.get(blindInfo.userIdx) : undefined;
+              const roundRevealed = roundChosenIdx !== undefined;
+              const isChosen = roundChosenIdx === i;
+              const canPick = isBlindTarget && !roundRevealed;
+              const isNormalAssistant = message.role === "assistant" && !message.synthesis && !blindMode && !!message.model;
 
-            const isBlindTarget = blindMode && message.role === "assistant" && !message.synthesis && !!message.model;
-            const blindInfo = isBlindTarget ? msgBlindInfo.get(i) : undefined;
-            const roundChosenIdx = blindInfo ? chosenByRound.get(blindInfo.userIdx) : undefined;
-            const roundRevealed = roundChosenIdx !== undefined;
-            const isChosen = roundChosenIdx === i;
-            const canPick = isBlindTarget && !roundRevealed;
+              const findUserMsgIdx = () => {
+                for (let j = i - 1; j >= 0; j--) {
+                  if (messages[j].role === "user") return j;
+                }
+                return -1;
+              };
 
-            const findUserMsgIdx = () => {
-              for (let j = i - 1; j >= 0; j--) {
-                if (messages[j].role === "user") return j;
-              }
-              return -1;
-            };
-
-            const isNormalAssistant = message.role === "assistant" && !message.synthesis && !blindMode && !!message.model;
-            const showGroupDivider = isFirstAssistantInRound(i);
-
-            return (
-              <div key={i}>
-                {showGroupDivider && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
-                    <div style={{ flex: 1, height: 1, background: "rgba(237,230,221,0.06)" }} />
-                    <div style={{ fontSize: 10.5, opacity: 0.4, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                      {models.length === 1 ? "One answer" : models.length === 2 ? "Two answers" : "Three answers"}
-                    </div>
-                    <div style={{ flex: 1, height: 1, background: "rgba(237,230,221,0.06)" }} />
-                  </div>
-                )}
-
-                <div
-                  className={`flex flex-col animate-msg-in ${message.model ? "items-start" : "items-end"} ${canPick ? "cursor-pointer" : ""}`}
-                  onClick={canPick ? () => pickResponse(i) : undefined}
-                >
-                  {!message.model ? (
-                    <div
-                      style={{
-                        background: "rgba(237,230,221,0.08)",
-                        padding: "11px 17px",
-                        borderRadius: 18,
-                        fontSize: 14.5,
-                        maxWidth: "70%",
-                        lineHeight: 1.65,
-                        whiteSpace: "pre-wrap",
-                      }}
-                    >
+              if (!message.model) {
+                return (
+                  <div key={i} className="flex flex-col items-end animate-msg-in">
+                    <div style={{ background: "rgba(237,230,221,0.08)", padding: "11px 17px", borderRadius: 18, fontSize: 14.5, maxWidth: sideBySide ? "100%" : "70%", lineHeight: 1.65, whiteSpace: "pre-wrap" }}>
                       {message.content}
                     </div>
-                  ) : (
-                    <div className="group w-full" style={{ display: "flex", gap: 13 }}>
-                      {/* Avatar */}
-                      <div style={{ flexShrink: 0, paddingTop: 2 }}>
-                        {message.synthesis ? (
-                          <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(237,230,221,0.08)", border: "1.5px solid rgba(237,230,221,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            <SparkleIcon size={13} style={{ color: "var(--cz-accent)" }} />
-                          </div>
-                        ) : canPick ? (
-                          <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(99,102,241,0.15)", border: "1.5px solid rgba(99,102,241,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "rgba(165,180,252,0.85)" }}>
-                            {blindInfo?.letter}
-                          </div>
-                        ) : meta ? (
-                          <ModelIcon model={meta} />
-                        ) : (
-                          <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(237,230,221,0.08)" }} />
-                        )}
-                      </div>
+                  </div>
+                );
+              }
 
-                      {/* Content */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        {/* Header row */}
+              return (
+                <div
+                  key={i}
+                  className={`flex flex-col animate-msg-in items-start ${canPick ? "cursor-pointer" : ""}`}
+                  onClick={canPick ? () => pickResponse(i) : undefined}
+                >
+                  <div className="group w-full" style={{ display: "flex", gap: compact ? 10 : 13, flexDirection: compact ? "column" : "row" }}>
+                    {/* Avatar */}
+                    <div style={{ flexShrink: 0, paddingTop: 2, display: "flex", alignItems: "center", gap: 8 }}>
+                      {message.synthesis ? (
+                        <div style={{ width: compact ? 22 : 28, height: compact ? 22 : 28, borderRadius: "50%", background: "rgba(237,230,221,0.08)", border: "1.5px solid rgba(237,230,221,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <SparkleIcon size={compact ? 10 : 13} style={{ color: "var(--cz-accent)" }} />
+                        </div>
+                      ) : canPick ? (
+                        <div style={{ width: compact ? 22 : 28, height: compact ? 22 : 28, borderRadius: "50%", background: "rgba(99,102,241,0.15)", border: "1.5px solid rgba(99,102,241,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: compact ? 9 : 11, fontWeight: 700, color: "rgba(165,180,252,0.85)" }}>
+                          {blindInfo?.letter}
+                        </div>
+                      ) : meta ? (
+                        <ModelIcon model={meta} size={compact ? 22 : 28} />
+                      ) : (
+                        <div style={{ width: compact ? 22 : 28, height: compact ? 22 : 28, borderRadius: "50%", background: "rgba(237,230,221,0.08)" }} />
+                      )}
+                      {compact && (
+                        <span style={{ fontSize: 11.5, fontWeight: 600 }}>
+                          {message.synthesis ? "Synthesis" : canPick ? `Response ${blindInfo?.letter}` : meta?.name}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Content */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* Header row */}
+                      {!compact && (
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7, flexWrap: "wrap" }}>
                           {message.synthesis ? (
                             <>
@@ -532,48 +530,117 @@ export function ChatView({
                             </>
                           )}
                         </div>
+                      )}
 
-                        {/* Body */}
-                        <div style={{ fontSize: 14.5, lineHeight: 1.65, opacity: 0.9 }}>
-                          {message.content === "⚠ rate_limit_free" ? (
-                            <RateLimitMessage free={true} />
-                          ) : message.content === "⚠ rate_limit_paid" ? (
-                            <RateLimitMessage free={false} />
-                          ) : message.content.startsWith("⚠") ? (
-                            <p style={{ color: "#f87171", whiteSpace: "pre-wrap" }}>{message.content}</p>
-                          ) : (
-                            <Markdown content={message.content} />
-                          )}
-                        </div>
-
-                        {/* Per-card footer — hover only */}
-                        {isNormalAssistant && (
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ display: "flex", gap: 4, marginTop: 10 }}>
-                            {[
-                              { icon: <ContinueIcon size={12} />, label: "Continue with this" },
-                              { icon: <FollowUpIcon size={12} />, label: "Ask follow-up", action: () => inputRef.current?.focus() },
-                            ].map(({ icon, label, action }) => (
-                              <button
-                                key={label}
-                                onClick={(e) => { e.stopPropagation(); action?.(); }}
-                                className="cursor-pointer flex items-center gap-1.5 transition-all"
-                                style={{ background: "transparent", border: 0, color: "inherit", fontSize: 12, padding: "4px 9px", borderRadius: 6, opacity: 0.55 }}
-                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "1"; (e.currentTarget as HTMLElement).style.background = "rgba(237,230,221,0.06)"; }}
-                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "0.55"; (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                              >
-                                {icon}
-                                {label}
-                              </button>
-                            ))}
-                          </div>
+                      {/* Body */}
+                      <div style={{ fontSize: compact ? 13 : 14.5, lineHeight: 1.65, opacity: 0.9 }}>
+                        {message.content === "⚠ rate_limit_free" ? (
+                          <RateLimitMessage free={true} />
+                        ) : message.content === "⚠ rate_limit_paid" ? (
+                          <RateLimitMessage free={false} />
+                        ) : message.content.startsWith("⚠") ? (
+                          <p style={{ color: "#f87171", whiteSpace: "pre-wrap" }}>{message.content}</p>
+                        ) : (
+                          <Markdown content={message.content} />
                         )}
                       </div>
+
+                      {/* Per-card footer — hover only */}
+                      {isNormalAssistant && !compact && (
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ display: "flex", gap: 4, marginTop: 10 }}>
+                          {[
+                            { icon: <ContinueIcon size={12} />, label: "Continue with this" },
+                            { icon: <FollowUpIcon size={12} />, label: "Ask follow-up", action: () => inputRef.current?.focus() },
+                          ].map(({ icon, label, action }) => (
+                            <button
+                              key={label}
+                              onClick={(e) => { e.stopPropagation(); action?.(); }}
+                              className="cursor-pointer flex items-center gap-1.5 transition-all"
+                              style={{ background: "transparent", border: 0, color: "inherit", fontSize: 12, padding: "4px 9px", borderRadius: 6, opacity: 0.55 }}
+                              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "1"; (e.currentTarget as HTMLElement).style.background = "rgba(237,230,221,0.06)"; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "0.55"; (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                            >
+                              {icon}
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            };
+
+            if (sideBySide && !blindMode) {
+              // Group into rounds: user msg → assistant responses (side by side) → synthesis
+              const elements: React.ReactNode[] = [];
+              let i = 0;
+              while (i < messages.length) {
+                const msg = messages[i];
+                if (msg.role === "user") {
+                  elements.push(
+                    <div key={`user-${i}`} className="flex flex-col items-center animate-msg-in">
+                      <div style={{ background: "rgba(237,230,221,0.08)", padding: "11px 17px", borderRadius: 18, fontSize: 14.5, lineHeight: 1.65, whiteSpace: "pre-wrap", maxWidth: 760 }}>
+                        {msg.content}
+                      </div>
+                    </div>
+                  );
+                  i++;
+                  // Collect consecutive assistant responses
+                  const assistants: { msg: ChatMessage; idx: number }[] = [];
+                  while (i < messages.length && messages[i].role === "assistant" && !messages[i].synthesis) {
+                    assistants.push({ msg: messages[i], idx: i });
+                    i++;
+                  }
+                  if (assistants.length > 0) {
+                    const n = assistants.length;
+                    elements.push(
+                      <div key={`round-${assistants[0].idx}`}>
+                        {/* Node lines from user bubble to each column */}
+                        <div style={{ display: "flex", justifyContent: "center", height: 40, position: "relative" }}>
+                          <svg viewBox="0 0 100 40" width="100%" height="40" preserveAspectRatio="none" style={{ position: "absolute", top: 0, left: 0 }}>
+                            {Array.from({ length: n }).map((_, ci) => {
+                              const endX = ((ci + 0.5) / n) * 100;
+                              return (
+                                <path
+                                  key={ci}
+                                  d={`M 50 0 C 50 22, ${endX} 18, ${endX} 40`}
+                                  stroke="rgba(237,230,221,0.12)"
+                                  strokeWidth="0.8"
+                                  fill="none"
+                                  vectorEffect="non-scaling-stroke"
+                                />
+                              );
+                            })}
+                          </svg>
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: `repeat(${n}, 1fr)`, gap: 24 }}>
+                          {assistants.map(({ msg: aMsg, idx }) => (
+                            <div key={idx} style={{ minWidth: 0, overflow: "hidden" }}>
+                              {renderMessageCard(aMsg, idx, true)}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+                } else {
+                  // Synthesis or stray assistant
+                  elements.push(
+                    <div key={`msg-${i}`} style={{ maxWidth: 760, margin: "0 auto", width: "100%" }}>
+                      {renderMessageCard(msg, i)}
+                    </div>
+                  );
+                  i++;
+                }
+              }
+              return elements;
+            }
+
+            // Default stacked rendering
+            return messages.map((message, i) => renderMessageCard(message, i));
+          })()}
 
           {/* Streaming */}
           {Object.entries(streamingContent).map(([modelId, content]) => {
