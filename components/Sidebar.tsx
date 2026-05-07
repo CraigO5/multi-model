@@ -117,18 +117,18 @@ export function Sidebar({
               <PlusIcon />
             </button>
 
-            <div className="flex-1" />
-
             <button
               onClick={() => setCollapsed(false)}
               title="Expand sidebar"
-              className="w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-150 cursor-pointer mb-1"
+              className="w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-150 cursor-pointer"
               style={{ color: "var(--cz-text)", opacity: 0.4 }}
               onMouseEnter={e => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.background = "rgba(237,230,221,0.06)"; }}
               onMouseLeave={e => { e.currentTarget.style.opacity = "0.4"; e.currentTarget.style.background = "transparent"; }}
             >
               <ChevronRightIcon />
             </button>
+
+            <div className="flex-1" />
           </div>
         )}
 

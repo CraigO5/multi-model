@@ -213,16 +213,6 @@ export function ChatView({
         style={{ padding: "20px 32px 14px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}
       >
         <div className="flex items-center gap-3 min-w-0">
-          <button
-            onClick={onOpenSidebar}
-            className="md:hidden cursor-pointer shrink-0"
-            style={{ ...pillBase, padding: "6px", opacity: 0.7 }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "1"; (e.currentTarget as HTMLElement).style.background = "rgba(237,230,221,0.08)"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "0.7"; (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-            title="Open menu"
-          >
-            <MenuIcon size={20} />
-          </button>
           <div className="min-w-0">
             <h1 className="truncate" style={{ fontSize: 19, fontWeight: 600, letterSpacing: "-0.01em" }}>
               {activeChat?.title ?? "New chat"}
@@ -396,9 +386,18 @@ export function ChatView({
       <div ref={unifiedScrollRef} className="flex-1 overflow-y-auto">
         <div style={{ padding: "14px 32px 24px", display: "flex", flexDirection: "column", gap: 22, maxWidth: 760, width: "100%", margin: "0 auto" }}>
           {messages.length === 0 && Object.keys(streamingContent).length === 0 && (
-            <p className="text-sm mt-20 select-none text-center" style={{ opacity: 0.3 }}>
-              Ask anything — all {models.length} AI{models.length !== 1 ? "s" : ""} will answer at once.
-            </p>
+            <div className="mt-20 select-none flex flex-col items-center gap-5">
+              <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                {models.map((m) => {
+                  const meta = MODELS.find((x) => x.id === m.id);
+                  if (!meta) return null;
+                  return <ModelIcon key={m.id} model={meta as { icon: string; color: string; name: string; initial: string }} size={38} />;
+                })}
+              </div>
+              <p className="text-sm" style={{ opacity: 0.35 }}>
+                Ask anything — all {models.length} AI{models.length !== 1 ? "s" : ""} will answer at once.
+              </p>
+            </div>
           )}
 
           {messages.map((message, i) => {

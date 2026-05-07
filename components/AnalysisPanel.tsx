@@ -182,7 +182,6 @@ export function AnalysisPanel({
             <span>Playful</span>
           </div>
         </div>
-        </div>
 
         {/* Context / system prompt */}
         <div style={{ paddingTop: 18, paddingBottom: 18, borderBottom: "1px solid rgba(237,230,221,0.06)" }}>
@@ -279,7 +278,6 @@ export function AnalysisPanel({
             </div>
           )}
         </div>
-        </div>
 
         {/* Advanced — collapsible */}
         <div style={{ paddingTop: 18, paddingBottom: 18, borderBottom: "1px solid rgba(237,230,221,0.06)" }}>
@@ -345,7 +343,6 @@ export function AnalysisPanel({
               </div>
             </div>
           )}
-        </div>
         </div>
 
         {/* What would you like to do? */}
@@ -471,7 +468,6 @@ export function AnalysisPanel({
             </div>
           )}
         </div>
-        </div>
 
         {/* Tip box */}
         <div
@@ -481,7 +477,7 @@ export function AnalysisPanel({
             background: "rgba(237,230,221,0.04)",
             borderRadius: 10,
             padding: 12,
-            marginTop: "auto",
+            marginTop: 18,
           }}
         >
           <span style={{ fontSize: 18 }}>💡</span>
