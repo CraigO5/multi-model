@@ -112,8 +112,21 @@ body {
   animation: collapse-out 0.2s ease-in both;
 }
 
+/* PWA standalone: safe areas for notched devices */
+@supports (padding: env(safe-area-inset-top)) {
+  html {
+    padding-top: env(safe-area-inset-top);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+/* Hide scrollbar on mobile for cleaner PWA feel */
 @media (max-width: 640px) {
-  [data-sidebar] {
+  * {
+    scrollbar-width: none;
+  }
+  *::-webkit-scrollbar {
     display: none;
   }
 }

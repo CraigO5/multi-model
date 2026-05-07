@@ -16,6 +16,7 @@ import { AnalysisPanel } from "@/components/AnalysisPanel";
 import { AnalyticsView } from "@/components/AnalyticsView";
 import { SplitView } from "@/components/SplitView";
 import { ChatView } from "@/components/ChatView";
+import { SplitIcon } from "@/components/icons";
 
 export default function Home() {
   // ─── Core state ──────────────────────────────────────────────────────────
@@ -45,7 +46,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
   const [showTemplates, setShowTemplates] = useState(false);
-  const [showAnalysisPanel, setShowAnalysisPanel] = useState(true);
+  const [showAnalysisPanel, setShowAnalysisPanel] = useState(false);
   const [chartMetric, setChartMetric] = useState<"tokens" | "cost" | "latency">("tokens");
   const [analysisModelId, setAnalysisModelId] = useState<string>(MODELS[0].id);
   const [analysisPrompt, setAnalysisPrompt] = useState("");
@@ -1067,23 +1068,75 @@ ${latestResponses
 
       {/* Main content */}
       {isSplit ? (
-        <SplitView
-          slots={slots}
-          setSlots={setSlots}
-          swapSlot={swapSlot}
-          setSwapSlot={setSwapSlot}
-          hoveredSlot={hoveredSlot}
-          setHoveredSlot={setHoveredSlot}
-          mergingFrom={mergingFrom}
-          slotScrollRefs={slotScrollRefs}
-          overLimit={overLimit}
-          isRateLimited={isRateLimited}
-          rateLimitMinsLeft={rateLimitMinsLeft}
-          handleMerge={handleMerge}
-          handleSwapModel={handleSwapModel}
-          handleSplitSend={handleSplitSend}
-          handleSlotCancel={handleSlotCancel}
-        />
+        <>
+          {/* Desktop: full split view */}
+          <div className="hidden md:flex flex-1 overflow-hidden">
+            <SplitView
+              slots={slots}
+              setSlots={setSlots}
+              swapSlot={swapSlot}
+              setSwapSlot={setSwapSlot}
+              hoveredSlot={hoveredSlot}
+              setHoveredSlot={setHoveredSlot}
+              mergingFrom={mergingFrom}
+              slotScrollRefs={slotScrollRefs}
+              overLimit={overLimit}
+              isRateLimited={isRateLimited}
+              rateLimitMinsLeft={rateLimitMinsLeft}
+              handleMerge={handleMerge}
+              handleSwapModel={handleSwapModel}
+              handleSplitSend={handleSplitSend}
+              handleSlotCancel={handleSlotCancel}
+            />
+          </div>
+          {/* Mobile: show normal chat with exit-split banner */}
+          <div className="flex md:hidden flex-1 flex-col overflow-hidden">
+            <button
+              onClick={() => { setIsSplit(false); setSlots([]); }}
+              className="shrink-0 flex items-center justify-center gap-2 cursor-pointer"
+              style={{
+                padding: "10px 16px",
+                fontSize: 13,
+                fontWeight: 500,
+                background: "var(--cz-accent-soft)",
+                color: "var(--cz-accent)",
+                border: 0,
+                borderBottom: "1px solid rgba(237,230,221,0.06)",
+              }}
+            >
+              <SplitIcon size={14} />
+              Split view is desktop only — tap to go back
+            </button>
+            <ChatView
+              activeChat={activeChat}
+              messages={messages}
+              isLoading={isLoading}
+              models={models}
+              addModel={addModel}
+              removeModel={removeModel}
+              showAllModels={showAllModels}
+              setShowAllModels={setShowAllModels}
+              isRateLimited={isRateLimited}
+              rateLimitMinsLeft={rateLimitMinsLeft}
+              totalUsage={totalUsage}
+              userMessage={userMessage}
+              setUserMessage={setUserMessage}
+              handleSendMessage={handleSendMessage}
+              handleCancel={handleCancel}
+              handleSplit={handleSplit}
+              showAnalysisPanel={showAnalysisPanel}
+              setShowAnalysisPanel={setShowAnalysisPanel}
+              unifiedScrollRef={unifiedScrollRef}
+              error={error}
+              overLimit={overLimit}
+              blindMode={blindMode}
+              setBlindMode={setBlindMode}
+              streamingContent={streamingContent}
+              handleRegenerate={handleRegenerate}
+              onOpenSidebar={() => setSidebarOpen(true)}
+            />
+          </div>
+        </>
       ) : view === "analytics" ? (
         <AnalyticsView
           chats={chats}

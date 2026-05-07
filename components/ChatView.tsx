@@ -205,28 +205,22 @@ export function ChatView({
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* ── Header ── */}
       <div
-        className="w-full shrink-0 relative"
-        style={{ padding: "20px 32px 14px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}
+        className="w-full shrink-0 relative px-4 sm:px-8"
+        style={{ paddingTop: 16, paddingBottom: 10 }}
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="min-w-0">
-            <h1 className="truncate" style={{ fontSize: 19, fontWeight: 600, letterSpacing: "-0.01em" }}>
-              {activeChat?.title ?? "New chat"}
-            </h1>
-            {blindMode ? (
-              <p style={{ fontSize: 12.5, marginTop: 4, color: "var(--cz-accent)" }}>
-                Blind mode — click to pick your favourite
-              </p>
-            ) : totalUsage.tokens > 0 ? (
-              <p style={{ fontSize: 12.5, marginTop: 4, opacity: 0.45 }}>
-                {models.length} AI{models.length !== 1 ? "s" : ""} answered · {formatUsd(totalUsage.cost)} total
-              </p>
-            ) : null}
-          </div>
-        </div>
-
-        {/* Pills */}
-        <div style={{ display: "flex", gap: 2, flexShrink: 0, marginLeft: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button
+            onClick={onOpenSidebar}
+            className="md:hidden shrink-0 cursor-pointer active:scale-95 transition-transform"
+            style={{ background: "rgba(237,230,221,0.06)", border: 0, padding: 4, borderRadius: 10 }}
+          >
+            <img src="/logo.png" alt="Menu" className="w-7 h-7 rounded-lg object-contain" />
+          </button>
+          <h1 className="truncate flex-1 min-w-0" style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-0.01em" }}>
+            {activeChat?.title ?? "New chat"}
+          </h1>
+          {/* Pills */}
+          <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
           <button
             onClick={() => setBlindMode(!blindMode)}
             title={blindMode ? "Exit blind mode" : "Blind mode — hide model names until you pick"}
@@ -267,13 +261,14 @@ export function ChatView({
                 </span>
               ))}
             </span>
-            <span style={{ fontSize: 12 }}>{models.length} AIs</span>
+            <span className="hidden sm:inline" style={{ fontSize: 12 }}>{models.length} AIs</span>
           </button>
 
           {messages.length > 0 && models.length > 1 && !blindMode && (
             <button
               onClick={() => setSideBySide(!sideBySide)}
               title={sideBySide ? "Stack responses" : "Show responses side by side"}
+              className="hidden md:flex items-center gap-1.5"
               style={sideBySide ? pillOn : pillBase}
               onMouseEnter={e => { if (!sideBySide) { (e.currentTarget as HTMLElement).style.background = "rgba(237,230,221,0.06)"; (e.currentTarget as HTMLElement).style.opacity = "1"; } }}
               onMouseLeave={e => { if (!sideBySide) { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.opacity = "0.65"; } }}
@@ -307,6 +302,7 @@ export function ChatView({
             <SliderIcon size={14} />
             <span className="hidden sm:inline">Settings</span>
           </button>
+          </div>
         </div>
 
         {/* Model selector dropdown — positioned relative to header */}
@@ -314,11 +310,10 @@ export function ChatView({
           <>
             <div className="fixed inset-0 z-10" onClick={() => setShowAllModels(false)} />
             <div
-              className="absolute z-20 mt-1 rounded-2xl p-1.5 shadow-2xl w-72 max-h-96 overflow-y-auto animate-panel-in"
+              className="absolute z-20 mt-1 rounded-2xl p-1.5 shadow-2xl w-72 max-h-96 overflow-y-auto animate-panel-in right-4 sm:right-8"
               style={{
                 background: "var(--cz-surface)",
                 top: "100%",
-                right: 32,
                 boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
                 border: "1px solid rgba(237,230,221,0.06)",
               }}
@@ -393,7 +388,7 @@ export function ChatView({
 
       {/* ── Messages feed ── */}
       <div ref={unifiedScrollRef} className="flex-1 overflow-y-auto" style={{ display: "flex", flexDirection: "column" }}>
-        <div style={{ padding: "14px 32px 24px", display: "flex", flexDirection: "column", gap: 22, maxWidth: sideBySide ? "100%" : 760, width: "100%", margin: "0 auto", flex: 1 }}>
+        <div className="px-4 sm:px-8" style={{ paddingTop: 14, paddingBottom: 24, display: "flex", flexDirection: "column", gap: 22, maxWidth: sideBySide ? "100%" : 760, width: "100%", margin: "0 auto", flex: 1 }}>
           {messages.length === 0 && Object.keys(streamingContent).length === 0 && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 20 }}>
               <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
@@ -443,7 +438,7 @@ export function ChatView({
                   className={`flex flex-col animate-msg-in items-start ${canPick ? "cursor-pointer" : ""}`}
                   onClick={canPick ? () => pickResponse(i) : undefined}
                 >
-                  <div className="group w-full" style={{ display: "flex", gap: compact ? 10 : 13, flexDirection: compact ? "column" : "row" }}>
+                  <div className="group w-full" style={{ display: "flex", gap: compact ? 10 : 13, flexDirection: compact ? "column" : "row", alignItems: "flex-start" }}>
                     {/* Avatar */}
                     <div style={{ flexShrink: 0, paddingTop: 2, display: "flex", alignItems: "center", gap: 8 }}>
                       {message.synthesis ? (
@@ -679,7 +674,7 @@ export function ChatView({
       </div>
 
       {/* ── Composer ── */}
-      <div style={{ padding: "8px 32px 22px", maxWidth: 760, width: "100%", margin: "0 auto", alignSelf: "center", boxSizing: "border-box" }}>
+      <div className="px-4 sm:px-8" style={{ paddingTop: 8, paddingBottom: "max(22px, env(safe-area-inset-bottom))", maxWidth: 760, width: "100%", margin: "0 auto", alignSelf: "center", boxSizing: "border-box" }}>
         {error && (
           <div style={{ marginBottom: 8, fontSize: 13, color: "#f87171", background: "rgba(239,68,68,0.1)", borderRadius: 10, padding: "8px 12px", display: "inline-flex", alignItems: "center", gap: 6 }}>
             {error}
@@ -756,7 +751,7 @@ export function ChatView({
             {userMessage.length}/{MAX_INPUT_CHARS}
           </p>
         )}
-        <p style={{ fontSize: 11.5, opacity: 0.35, marginTop: 8, paddingLeft: 2 }}>
+        <p className="hidden sm:block" style={{ fontSize: 11.5, opacity: 0.35, marginTop: 8, paddingLeft: 2 }}>
           Press Enter — all AIs answer at once
         </p>
       </div>
