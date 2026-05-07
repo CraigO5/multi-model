@@ -60,6 +60,11 @@ export const isPaid = (modelId: string) => {
   return m.pricing.prompt > 0 || m.pricing.completion > 0;
 };
 
+export const isProModel = (modelId: string) => {
+  const m = MODELS.find((x) => x.id === modelId);
+  return m?.requiresPro === true;
+};
+
 export const computeCost = (
   modelId: string,
   promptTokens: number,

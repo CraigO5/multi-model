@@ -28,7 +28,6 @@ export default function Home() {
   const isAuthenticated = !!session?.user;
 
   // ─── Core state ──────────────────────────────────────────────────────────
-  const [userMessage, setUserMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [models, setModels] = useState<Model[]>([MODELS[0]]);
@@ -461,10 +460,11 @@ export default function Home() {
     signal: AbortSignal | undefined,
     onChunk: (delta: string) => void,
   ): Promise<{ usage: { promptTokens: number; completionTokens: number } }> => {
+    const customApiKey = localStorage.getItem("mm_api_key") ?? undefined;
     const response = await fetch("/api/openrouter", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: msgs, model: modelId, prompt, temperature }),
+      body: JSON.stringify({ messages: msgs, model: modelId, prompt, temperature, ...(customApiKey ? { apiKey: customApiKey } : {}) }),
       signal,
     });
     if (!response.ok) {
@@ -687,7 +687,6 @@ ${latestResponses
     if (!content.trim() || isLoading || overLimit) return;
     if (content.length > MAX_INPUT_CHARS) return;
 
-    setUserMessage("");
     setError(null);
 
     // Consume one trial message (no-op for authenticated users)
@@ -1222,8 +1221,6 @@ ${latestResponses
               isRateLimited={isRateLimited}
               rateLimitMinsLeft={rateLimitMinsLeft}
               totalUsage={totalUsage}
-              userMessage={userMessage}
-              setUserMessage={setUserMessage}
               handleSendMessage={handleSendMessage}
               handleCancel={handleCancel}
               handleSplit={handleSplit}
@@ -1268,8 +1265,6 @@ ${latestResponses
           isRateLimited={isRateLimited}
           rateLimitMinsLeft={rateLimitMinsLeft}
           totalUsage={totalUsage}
-          userMessage={userMessage}
-          setUserMessage={setUserMessage}
           handleSendMessage={handleSendMessage}
           handleCancel={handleCancel}
           handleSplit={handleSplit}

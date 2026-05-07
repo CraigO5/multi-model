@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Chat, ChatMessage, Model } from "@/types/chat";
 import { MODELS, MAX_INPUT_CHARS } from "@/lib/models";
-import { isPaid, formatUsd, formatLatency } from "@/lib/utils";
+import { isPaid, isProModel, formatUsd, formatLatency } from "@/lib/utils";
 import { Markdown } from "@/components/Markdown";
 import {
   EyeOffIcon,
@@ -36,8 +36,6 @@ type Props = {
   isRateLimited: (modelId: string) => boolean;
   rateLimitMinsLeft: (modelId: string) => number;
   totalUsage: { tokens: number; cost: number };
-  userMessage: string;
-  setUserMessage: (m: string) => void;
   handleSendMessage: (content: string) => void;
   handleCancel: () => void;
   handleSplit: () => void;
@@ -105,9 +103,7 @@ export function ChatView({
   isRateLimited,
   rateLimitMinsLeft,
   totalUsage,
-  userMessage,
-  setUserMessage,
-  handleSendMessage,
+  handleSendMessage: handleSendMessageProp,
   handleCancel,
   handleSplit,
   showAnalysisPanel,
@@ -127,7 +123,14 @@ export function ChatView({
   const [sideBySide, setSideBySide] = useState(false);
   const [isPwa, setIsPwa] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [userMessage, setUserMessage] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleSendMessage = (content: string) => {
+    if (!content.trim()) return;
+    setUserMessage("");
+    handleSendMessageProp(content);
+  };
 
   useEffect(() => {
     const standalone = window.matchMedia("(display-mode: standalone)").matches;
@@ -342,14 +345,12 @@ export function ChatView({
               }}
             >
               {(() => {
-                const paid = MODELS.filter((m) => isPaid(m.id));
-                const free = MODELS.filter((m) => !isPaid(m.id));
                 const renderRow = (model: (typeof MODELS)[number]) => {
                   const active = models.some((mm) => mm.id === model.id);
                   const limited = isRateLimited(model.id);
+                  const pro = isProModel(model.id);
                   const atCap = models.length >= 3 && !active;
-                  const paidModel = isPaid(model.id);
-                  const disabled = atCap || limited;
+                  const disabled = atCap || limited || pro;
                   return (
                     <button
                       key={model.id}
@@ -357,7 +358,7 @@ export function ChatView({
                       disabled={disabled}
                       className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm w-full text-left"
                       style={{
-                        color: limited ? "rgba(237,230,221,0.25)" : active ? "var(--cz-accent)" : atCap ? "rgba(237,230,221,0.25)" : "rgba(237,230,221,0.75)",
+                        color: pro ? "rgba(237,230,221,0.4)" : limited ? "rgba(237,230,221,0.25)" : active ? "var(--cz-accent)" : atCap ? "rgba(237,230,221,0.25)" : "rgba(237,230,221,0.75)",
                         background: active ? "var(--cz-accent-soft)" : "transparent",
                         textDecoration: limited ? "line-through" : "none",
                         cursor: disabled ? "not-allowed" : "pointer",
@@ -370,35 +371,40 @@ export function ChatView({
                         <img
                           src={model.icon}
                           alt={model.name}
-                          style={{ width: 16, height: 16, borderRadius: 3, objectFit: "contain", opacity: disabled ? 0.3 : 1, flexShrink: 0 }}
+                          style={{ width: 16, height: 16, borderRadius: 3, objectFit: "contain", opacity: disabled ? 0.35 : 1, flexShrink: 0 }}
                         />
-                        {paidModel && !limited && (
-                          <StarIcon size={9} style={{ color: "var(--cz-accent)", flexShrink: 0 }} weight="fill" />
-                        )}
                         <span className="truncate">{model.name}</span>
                       </div>
-                      <span style={{ fontSize: 10, opacity: 0.45, flexShrink: 0 }}>
-                        {limited ? `${rateLimitMinsLeft(model.id)}m` : paidModel ? `$${model.pricing.prompt}/$${model.pricing.completion}` : "free"}
+                      <span style={{ fontSize: 10, flexShrink: 0, display: "flex", alignItems: "center", gap: 4 }}>
+                        {pro ? (
+                          <span style={{ background: "rgba(107,207,127,0.12)", border: "1px solid rgba(107,207,127,0.25)", color: "var(--cz-accent)", fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 99, letterSpacing: "0.04em" }}>PRO</span>
+                        ) : limited ? (
+                          <span style={{ opacity: 0.45 }}>{rateLimitMinsLeft(model.id)}m</span>
+                        ) : (
+                          <span style={{ opacity: 0.45 }}>{isPaid(model.id) ? `$${model.pricing.prompt}` : "free"}</span>
+                        )}
                       </span>
                     </button>
                   );
                 };
+                const standard = MODELS.filter((m) => !isProModel(m.id));
+                const pro = MODELS.filter((m) => isProModel(m.id));
                 return (
                   <>
-                    {paid.length > 0 && (
+                    {standard.length > 0 && (
                       <>
-                        <div style={{ fontSize: 9, textTransform: "uppercase", color: "var(--cz-accent)", opacity: 0.7, letterSpacing: "0.1em", padding: "6px 12px 4px" }}>
-                          ★ Premium
+                        <div style={{ fontSize: 9, textTransform: "uppercase", opacity: 0.35, letterSpacing: "0.1em", padding: "6px 12px 4px" }}>
+                          Standard
                         </div>
-                        <div className="space-y-0.5">{paid.map(renderRow)}</div>
+                        <div className="space-y-0.5">{standard.map(renderRow)}</div>
                       </>
                     )}
-                    {free.length > 0 && (
+                    {pro.length > 0 && (
                       <>
-                        <div style={{ fontSize: 9, textTransform: "uppercase", opacity: 0.35, letterSpacing: "0.1em", padding: "12px 12px 4px" }}>
-                          Free
+                        <div style={{ fontSize: 9, textTransform: "uppercase", color: "var(--cz-accent)", opacity: 0.7, letterSpacing: "0.1em", padding: "12px 12px 4px" }}>
+                          ✦ Pro
                         </div>
-                        <div className="space-y-0.5">{free.map(renderRow)}</div>
+                        <div className="space-y-0.5">{pro.map(renderRow)}</div>
                       </>
                     )}
                   </>

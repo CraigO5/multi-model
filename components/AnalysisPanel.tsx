@@ -6,8 +6,9 @@ import { MAX_SYSTEM_PROMPT_CHARS } from "@/lib/models";
 import { ANALYSES } from "@/lib/utils";
 import { TrashIcon } from "@/components/icons";
 import { MODELS } from "@/lib/models";
-import { isPaid } from "@/lib/utils";
-import { type Icon, Trophy, Checks, FlowArrow, ListBullets, X as PhX, ChartLineUp, SlidersHorizontal, Textbox, CaretDown, Cpu } from "@phosphor-icons/react";
+import { isPaid, isProModel } from "@/lib/utils";
+import { type Icon, Trophy, Checks, FlowArrow, ListBullets, X as PhX, ChartLineUp, SlidersHorizontal, Textbox, CaretDown, Cpu, Lock } from "@phosphor-icons/react";
+import { UpgradeModal } from "@/components/UpgradeModal";
 
 type Props = {
   latestResponses: ChatMessage[];
@@ -73,17 +74,19 @@ function AnalysisModelPicker({
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const paid = MODELS.filter((m) => isPaid(m.id));
-  const free = MODELS.filter((m) => !isPaid(m.id));
+  const standard = MODELS.filter((m) => !isProModel(m.id));
+  const pro = MODELS.filter((m) => isProModel(m.id));
 
   const renderOption = (m: typeof MODELS[number]) => {
     const limited = isRateLimited(m.id);
+    const proGated = isProModel(m.id);
     const selected = m.id === analysisModelId;
+    const disabled = limited || proGated;
     return (
       <button
         key={m.id}
-        onClick={() => { if (!limited) { setAnalysisModelId(m.id); setOpen(false); } }}
-        disabled={limited}
+        onClick={() => { if (!disabled) { setAnalysisModelId(m.id); setOpen(false); } }}
+        disabled={disabled}
         style={{
           display: "flex",
           alignItems: "center",
@@ -93,20 +96,21 @@ function AnalysisModelPicker({
           borderRadius: 8,
           border: 0,
           background: selected ? "var(--cz-accent-soft)" : "transparent",
-          color: limited ? "rgba(237,230,221,0.25)" : selected ? "var(--cz-accent)" : "rgba(237,230,221,0.82)",
+          color: disabled ? "rgba(237,230,221,0.35)" : selected ? "var(--cz-accent)" : "rgba(237,230,221,0.82)",
           fontSize: 12.5,
           fontFamily: "inherit",
-          cursor: limited ? "not-allowed" : "pointer",
+          cursor: disabled ? "not-allowed" : "pointer",
           textAlign: "left",
           textDecoration: limited ? "line-through" : "none",
           transition: "background 0.1s",
         }}
-        onMouseEnter={e => { if (!limited && !selected) (e.currentTarget as HTMLElement).style.background = "rgba(237,230,221,0.06)"; }}
+        onMouseEnter={e => { if (!disabled && !selected) (e.currentTarget as HTMLElement).style.background = "rgba(237,230,221,0.06)"; }}
         onMouseLeave={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
       >
-        <img src={m.icon} alt={m.name} style={{ width: 14, height: 14, borderRadius: 2, objectFit: "contain", opacity: limited ? 0.3 : 1, flexShrink: 0 }} />
+        <img src={m.icon} alt={m.name} style={{ width: 14, height: 14, borderRadius: 2, objectFit: "contain", opacity: disabled ? 0.3 : 1, flexShrink: 0 }} />
         <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</span>
-        {limited && <span style={{ fontSize: 10, opacity: 0.5 }}>rate limited</span>}
+        {proGated && <span style={{ fontSize: 9, fontWeight: 700, background: "rgba(107,207,127,0.12)", border: "1px solid rgba(107,207,127,0.25)", color: "var(--cz-accent)", padding: "2px 6px", borderRadius: 99, letterSpacing: "0.04em" }}>PRO</span>}
+        {limited && !proGated && <span style={{ fontSize: 10, opacity: 0.5 }}>rate limited</span>}
       </button>
     );
   };
@@ -166,25 +170,216 @@ function AnalysisModelPicker({
               overflowY: "auto",
             }}
           >
-            {paid.length > 0 && (
+            {standard.length > 0 && (
               <>
-                <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--cz-accent)", opacity: 0.7, padding: "6px 10px 3px" }}>
-                  ★ Premium
+                <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", opacity: 0.35, padding: "6px 10px 3px" }}>
+                  Standard
                 </div>
-                {paid.map(renderOption)}
+                {standard.map(renderOption)}
               </>
             )}
-            {free.length > 0 && (
+            {pro.length > 0 && (
               <>
-                <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", opacity: 0.35, padding: "10px 10px 3px" }}>
-                  Free
+                <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--cz-accent)", opacity: 0.7, padding: "10px 10px 3px" }}>
+                  ✦ Pro
                 </div>
-                {free.map(renderOption)}
+                {pro.map(renderOption)}
               </>
             )}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// Stub: replace with real plan check once billing is live
+const useIsPro = () => false;
+
+function ApiKeySection({ onOpenUpgrade }: { onOpenUpgrade: () => void }) {
+  const isPro = useIsPro();
+  const [open, setOpen] = useState(false);
+  const [keyType, setKeyType] = useState<"openrouter" | "openai">("openrouter");
+  const [input, setInput] = useState("");
+  const [saved, setSaved] = useState<string | null>(null);
+  const [validating, setValidating] = useState(false);
+  const [valid, setValid] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const k = localStorage.getItem("mm_api_key");
+    if (k) setSaved(k);
+  }, []);
+
+  const masked = saved ? `${saved.slice(0, 8)}…${saved.slice(-4)}` : null;
+
+  const saveKey = async () => {
+    if (!input.trim()) return;
+    setValidating(true);
+    setValid(null);
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/models", {
+        headers: { Authorization: `Bearer ${input.trim()}` },
+      });
+      const ok = res.ok;
+      setValid(ok);
+      if (ok) {
+        localStorage.setItem("mm_api_key", input.trim());
+        setSaved(input.trim());
+        setInput("");
+      }
+    } catch {
+      setValid(false);
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  const clearKey = () => {
+    localStorage.removeItem("mm_api_key");
+    setSaved(null);
+    setValid(null);
+    setInput("");
+  };
+
+  if (!isPro) {
+    return (
+      <div style={{ paddingTop: 18, paddingBottom: 18, borderBottom: "1px solid rgba(237,230,221,0.06)" }}>
+        <button
+          onClick={onOpenUpgrade}
+          style={{
+            width: "100%", background: "transparent", border: 0, color: "inherit", fontSize: 12.5, fontWeight: 500,
+            cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 7,
+            fontFamily: "inherit", transition: "opacity 0.12s", opacity: 0.55,
+          }}
+          onMouseEnter={e => (e.currentTarget.style.opacity = "1")}
+          onMouseLeave={e => (e.currentTarget.style.opacity = "0.55")}
+        >
+          <span style={{ fontSize: 14 }}>🔑</span>
+          API Key
+          <span style={{ marginLeft: 4, display: "flex", alignItems: "center", gap: 4, fontSize: 10, background: "rgba(107,207,127,0.08)", border: "1px solid rgba(107,207,127,0.2)", color: "var(--cz-accent)", padding: "2px 7px", borderRadius: 99, fontWeight: 700, letterSpacing: "0.04em" }}>
+            <Lock size={9} weight="bold" />
+            PRO
+          </span>
+          <span style={{ marginLeft: "auto", fontSize: 11, opacity: 0.5 }}>Upgrade</span>
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ paddingTop: 18, paddingBottom: 18, borderBottom: "1px solid rgba(237,230,221,0.06)" }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{ background: "transparent", border: 0, color: "inherit", fontSize: 12.5, fontWeight: 500, cursor: "pointer", opacity: 0.65, padding: 0, display: "flex", alignItems: "center", gap: 7, fontFamily: "inherit", transition: "opacity 0.12s", width: "100%" }}
+        onMouseEnter={e => (e.currentTarget.style.opacity = "1")}
+        onMouseLeave={e => (e.currentTarget.style.opacity = "0.65")}
+      >
+        <span style={{ fontSize: 14 }}>🔑</span>
+        API Key
+        {saved && <span style={{ marginLeft: 4, fontSize: 10, background: "var(--cz-accent-soft)", color: "var(--cz-accent)", padding: "2px 7px", borderRadius: 99, fontWeight: 600 }}>Active</span>}
+        <CaretDown size={16} weight="bold" style={{ marginLeft: "auto", transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0deg)", opacity: 0.8 }} />
+      </button>
+
+      {open && (
+        <div style={{ marginTop: 12 }} className="animate-expand-in">
+          {/* Security explanation */}
+          <div style={{ background: "rgba(107,207,127,0.06)", border: "1px solid rgba(107,207,127,0.15)", borderRadius: 10, padding: "10px 12px", marginBottom: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--cz-accent)", marginBottom: 4 }}>🔒 How your key is protected</div>
+            <div style={{ fontSize: 11.5, opacity: 0.75, lineHeight: 1.55 }}>
+              Your key is <strong>stored only in this browser</strong> — it never touches our servers or database. Each request sends it directly over HTTPS and it&apos;s discarded immediately after.
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+              {[
+                { icon: "🔒", label: "Browser-only" },
+                { icon: "✅", label: "HTTPS only" },
+                { icon: "🛡", label: "Never logged" },
+              ].map(({ icon, label }) => (
+                <div key={label} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, background: "rgba(107,207,127,0.08)", border: "1px solid rgba(107,207,127,0.18)", borderRadius: 99, padding: "3px 8px", color: "var(--cz-accent)" }}>
+                  <span>{icon}</span>
+                  <span style={{ fontWeight: 600 }}>{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Key type tabs */}
+          <div style={{ display: "flex", gap: 4, marginBottom: 10, background: "rgba(237,230,221,0.04)", borderRadius: 8, padding: 3 }}>
+            {(["openrouter", "openai"] as const).map((type) => {
+              const labels = { openrouter: "OpenRouter", openai: "OpenAI (soon)" };
+              const selected = keyType === type;
+              const disabled = type === "openai";
+              return (
+                <button
+                  key={type}
+                  onClick={() => !disabled && setKeyType(type)}
+                  disabled={disabled}
+                  style={{
+                    flex: 1, padding: "6px 8px", borderRadius: 6, border: 0, fontSize: 11.5, fontWeight: 500, fontFamily: "inherit",
+                    cursor: disabled ? "not-allowed" : "pointer",
+                    background: selected ? "rgba(237,230,221,0.09)" : "transparent",
+                    color: disabled ? "rgba(237,230,221,0.25)" : selected ? "var(--cz-text)" : "rgba(237,230,221,0.5)",
+                    transition: "all 0.12s",
+                  }}
+                >
+                  {labels[type]}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Key input or saved display */}
+          {saved ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ flex: 1, background: "rgba(237,230,221,0.04)", border: "1px solid rgba(237,230,221,0.08)", borderRadius: 8, padding: "8px 11px", fontSize: 12, fontFamily: "monospace", opacity: 0.7 }}>
+                {masked}
+              </div>
+              <button
+                onClick={clearKey}
+                style={{ fontSize: 11.5, opacity: 0.55, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#f87171", padding: "7px 10px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", transition: "all 0.12s", whiteSpace: "nowrap" }}
+                onMouseEnter={e => (e.currentTarget.style.opacity = "1")}
+                onMouseLeave={e => (e.currentTarget.style.opacity = "0.55")}
+              >
+                Remove
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: 6 }}>
+              <input
+                type="password"
+                placeholder={keyType === "openrouter" ? "sk-or-..." : "sk-..."}
+                value={input}
+                onChange={e => { setInput(e.target.value); setValid(null); }}
+                onKeyDown={e => { if (e.key === "Enter") saveKey(); }}
+                style={{
+                  flex: 1, background: "rgba(237,230,221,0.04)", border: `1px solid ${valid === false ? "rgba(239,68,68,0.4)" : "rgba(237,230,221,0.08)"}`, borderRadius: 8, padding: "8px 11px",
+                  fontSize: 12, fontFamily: "monospace", color: "var(--cz-text)", outline: 0, transition: "border-color 0.12s",
+                }}
+                onFocus={e => (e.currentTarget.style.borderColor = "rgba(107,207,127,0.35)")}
+                onBlur={e => (e.currentTarget.style.borderColor = valid === false ? "rgba(239,68,68,0.4)" : "rgba(237,230,221,0.08)")}
+              />
+              <button
+                onClick={saveKey}
+                disabled={!input.trim() || validating}
+                style={{
+                  background: "var(--cz-accent-soft)", border: "1px solid rgba(107,207,127,0.25)", color: "var(--cz-accent)", fontSize: 12, fontWeight: 600, padding: "8px 12px", borderRadius: 8, cursor: input.trim() && !validating ? "pointer" : "not-allowed", fontFamily: "inherit", opacity: input.trim() && !validating ? 1 : 0.45, transition: "all 0.12s", whiteSpace: "nowrap",
+                }}
+              >
+                {validating ? "Checking…" : "Save"}
+              </button>
+            </div>
+          )}
+
+          {valid === false && (
+            <div style={{ fontSize: 11.5, color: "#f87171", marginTop: 6 }}>Key invalid or couldn&apos;t be verified. Check and try again.</div>
+          )}
+
+          <div style={{ fontSize: 11, opacity: 0.4, marginTop: 8, lineHeight: 1.45 }}>
+            {saved
+              ? "Your key is active. Requests bypass credits and go directly through your account."
+              : "Using your own key bypasses the credit system entirely."}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -215,6 +410,7 @@ export function AnalysisPanel({
   const [showContext, setShowContext] = useState(false);
   const [tipIndex, setTipIndex] = useState(0);
   const [isDesktop, setIsDesktop] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 768px)");
@@ -239,6 +435,8 @@ export function AnalysisPanel({
 
   return (
     <>
+      {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} />}
+
       {/* Backdrop */}
       <div
         className="fixed inset-0 z-40 transition-opacity duration-300"
@@ -327,6 +525,9 @@ export function AnalysisPanel({
               <span style={{ color: view === "analytics" ? "var(--cz-accent)" : "inherit" }}>Analytics</span>
             </button>
           </div>
+
+          {/* API Key */}
+          <ApiKeySection onOpenUpgrade={() => { close(); setShowUpgrade(true); }} />
 
           {/* Context / system prompt */}
           <div style={{ paddingTop: 18, paddingBottom: 18, borderBottom: "1px solid rgba(237,230,221,0.06)" }}>

@@ -7,7 +7,7 @@ import { getAnonId, getTrialCount, TRIAL_LIMIT } from "@/lib/trial";
 
 export const dynamic = "force-dynamic";
 
-const FREE_CREDITS = 2500;
+const FREE_CREDITS = 500;
 
 export async function GET() {
   const { data: session } = await auth.getSession();

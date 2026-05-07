@@ -8,7 +8,7 @@ import { computeCost, estimateMaxCredits } from "@/lib/utils";
 import { getOrCreateAnonId, checkTrialAllowed, TRIAL_LIMIT } from "@/lib/trial";
 import type { ChatMessage } from "@/types/chat";
 
-const FREE_CREDITS = 2500;
+const FREE_CREDITS = 500;
 
 async function getOrInitCredits(userId: string): Promise<number> {
   const rows = await db.select().from(userCredits).where(eq(userCredits.userId, userId)).limit(1);
@@ -52,6 +52,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const messages: ChatMessage[] = body?.messages;
     const model: string = body?.model;
+    const customApiKey: string | null = typeof body?.apiKey === "string" && body.apiKey ? body.apiKey : null;
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json({ error: "messages must be a non-empty array" }, { status: 400 });
@@ -69,21 +70,23 @@ export async function POST(request: Request) {
 
     let preDebitedAmount = 0;
 
-    if (userId) {
-      const newBalance = await debitCredits(userId, preDebit);
-      if (newBalance === null) {
-        return NextResponse.json({ error: "out_of_credits" }, { status: 402 });
-      }
-      preDebitedAmount = preDebit;
-    } else {
-      const { id: anonId } = await getOrCreateAnonId();
-      const allowed = await checkTrialAllowed(anonId);
-      console.log("[/api/openrouter] trial check", { anonId, allowed });
-      if (!allowed) {
-        return NextResponse.json(
-          { error: "trial_exhausted", limit: TRIAL_LIMIT },
-          { status: 402 }
-        );
+    if (!customApiKey) {
+      if (userId) {
+        const newBalance = await debitCredits(userId, preDebit);
+        if (newBalance === null) {
+          return NextResponse.json({ error: "out_of_credits" }, { status: 402 });
+        }
+        preDebitedAmount = preDebit;
+      } else {
+        const { id: anonId } = await getOrCreateAnonId();
+        const allowed = await checkTrialAllowed(anonId);
+        console.log("[/api/openrouter] trial check", { anonId, allowed });
+        if (!allowed) {
+          return NextResponse.json(
+            { error: "trial_exhausted", limit: TRIAL_LIMIT },
+            { status: 402 }
+          );
+        }
       }
     }
 
@@ -93,7 +96,7 @@ export async function POST(request: Request) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          Authorization: `Bearer ${customApiKey ?? process.env.OPENROUTER_API_KEY}`,
           "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
         },
         body: JSON.stringify({
@@ -161,7 +164,7 @@ export async function POST(request: Request) {
         } finally {
           controller.close();
 
-          if (userId && preDebitedAmount > 0) {
+          if (!customApiKey && userId && preDebitedAmount > 0) {
             let actualCredits: number | null = null;
             if (reportedCostUsd !== null) {
               // Source of truth: OpenRouter's reported cost.

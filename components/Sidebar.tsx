@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Chat } from "@/types/chat";
@@ -15,6 +16,7 @@ import {
   TrashIcon,
   XIcon,
 } from "@/components/icons";
+import { UpgradeModal } from "@/components/UpgradeModal";
 
 type Props = {
   filteredChats: Chat[];
@@ -55,6 +57,7 @@ export function Sidebar({
   const [editingValue, setEditingValue] = useState("");
   const [collapsed, setCollapsed] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const { data: session } = authClient.useSession();
@@ -90,9 +93,10 @@ export function Sidebar({
   };
 
   const trialRemaining = Math.max(0, trialLimit - trialUsed);
+  const FREE_DAILY = 500;
   const creditsPct = isTrial
     ? (trialRemaining / trialLimit) * 100
-    : credits !== null ? Math.min(100, (credits / 2500) * 100) : 100;
+    : credits !== null ? Math.min(100, (credits / FREE_DAILY) * 100) : 100;
   const creditsLabel = isTrial
     ? trialRemaining <= 0
       ? "Trial ended"
@@ -106,10 +110,10 @@ export function Sidebar({
           : `${credits.toLocaleString()} credits`;
   const creditsHint = isTrial
     ? trialRemaining <= 0
-      ? "Sign up for 2,500 free credits."
-      : "Sign up for 2,500 free credits."
+      ? "Sign up for 500 free credits."
+      : "Sign up for 500 free credits."
     : overLimit
-      ? "Top up to keep chatting."
+      ? "Upgrade for more credits."
       : creditsPct > 60
         ? "Plenty of credits"
         : creditsPct > 20
@@ -375,7 +379,35 @@ export function Sidebar({
                   {creditsHint}
                 </div>
               </div>
+
+              {/* Upgrade button */}
+              <button
+                onClick={() => setShowUpgrade(true)}
+                className="w-full mt-2 flex items-center justify-center gap-2 rounded-lg text-[12.5px] font-semibold transition-all duration-150 cursor-pointer"
+                style={{
+                  padding: "9px 14px",
+                  background: "linear-gradient(135deg, rgba(107,207,127,0.15) 0%, rgba(107,207,127,0.08) 100%)",
+                  border: "1px solid rgba(107,207,127,0.25)",
+                  color: "var(--cz-accent)",
+                  boxShadow: "0 0 16px rgba(107,207,127,0.08)",
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget.style.background = "linear-gradient(135deg, rgba(107,207,127,0.22) 0%, rgba(107,207,127,0.13) 100%)");
+                  (e.currentTarget.style.boxShadow = "0 0 24px rgba(107,207,127,0.18)");
+                  (e.currentTarget.style.borderColor = "rgba(107,207,127,0.45)");
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget.style.background = "linear-gradient(135deg, rgba(107,207,127,0.15) 0%, rgba(107,207,127,0.08) 100%)");
+                  (e.currentTarget.style.boxShadow = "0 0 16px rgba(107,207,127,0.08)");
+                  (e.currentTarget.style.borderColor = "rgba(107,207,127,0.25)");
+                }}
+              >
+                <span style={{ fontSize: 13 }}>✦</span>
+                Upgrade to Pro
+              </button>
             </div>
+
+            {showUpgrade && createPortal(<UpgradeModal onClose={() => setShowUpgrade(false)} />, document.body)}
 
             {/* User profile */}
             {user && (

@@ -29,6 +29,7 @@ export type Model = {
     prompt: number; // USD per 1M tokens
     completion: number; // USD per 1M tokens
   };
+  requiresPro?: boolean;
 };
 
 export type Chat = {
