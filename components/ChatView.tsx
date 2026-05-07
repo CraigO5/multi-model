@@ -228,7 +228,7 @@ export function ChatView({
       {/* ── Header ── */}
       <div
         className="w-full shrink-0 relative px-4 sm:px-8"
-        style={{ paddingTop: 16, paddingBottom: 10 }}
+        style={{ paddingTop: 16, paddingBottom: 10, touchAction: "none" }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
@@ -773,7 +773,7 @@ export function ChatView({
       </div>
 
       {/* ── Composer ── */}
-      <div className="px-4 sm:px-8" style={{ paddingTop: 8, paddingBottom: "max(22px, env(safe-area-inset-bottom))", maxWidth: 760, width: "100%", margin: "0 auto", alignSelf: "center", boxSizing: "border-box" }}>
+      <div className="px-4 sm:px-8" style={{ paddingTop: 8, paddingBottom: "max(22px, env(safe-area-inset-bottom))", maxWidth: 760, width: "100%", margin: "0 auto", alignSelf: "center", boxSizing: "border-box", touchAction: "none" }}>
         {error && (
           <div style={{ marginBottom: 8, fontSize: 13, color: "#f87171", background: "rgba(239,68,68,0.1)", borderRadius: 10, padding: "8px 12px", display: "inline-flex", alignItems: "center", gap: 6 }}>
             {error}

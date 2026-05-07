@@ -1163,8 +1163,8 @@ ${latestResponses
     {trialLimited && <TrialEndModal />}
     <LockedFeatureModal feature={lockedFeature} onClose={() => setLockedFeature(null)} />
     <div
-      className="h-screen flex overflow-hidden"
-      style={{ background: "var(--cz-bg)", color: "var(--cz-text)" }}
+      className="flex overflow-hidden"
+      style={{ height: "100dvh", background: "var(--cz-bg)", color: "var(--cz-text)" }}
       onClick={() => isSplit && setSwapSlot(null)}
     >
       <Sidebar {...sidebarProps} />

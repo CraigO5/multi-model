@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Multi-Model — Compare AI responses",
-    short_name: "Multi-Model",
+    name: "Multi Model — Compare AI responses",
+    short_name: "Multi Model",
     description:
       "Ask every AI at once. Compare responses from GPT, Claude, Gemini, DeepSeek and more.",
     start_url: "/chat",

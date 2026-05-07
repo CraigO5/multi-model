@@ -7,17 +7,17 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Multi-Model — Compare AI responses side by side",
+  title: "Multi Model — Compare AI responses side by side",
   description: "Ask every AI at once. Compare responses from GPT, Claude, Gemini, DeepSeek and more. Blind mode, split view, AI analysis.",
   openGraph: {
-    title: "Multi-Model — Compare AI responses side by side",
+    title: "Multi Model — Compare AI responses side by side",
     description: "Ask every AI at once. Compare responses from GPT, Claude, Gemini, DeepSeek and more.",
     type: "website",
     url: "https://multimodel.craigo.live",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Multi-Model — Compare AI responses side by side",
+    title: "Multi Model — Compare AI responses side by side",
     description: "Ask every AI at once. Compare AI responses with blind mode and split view.",
   },
 };

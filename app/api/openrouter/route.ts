@@ -101,6 +101,8 @@ export async function POST(request: Request) {
           messages: allMessages,
           stream: true,
           max_tokens: MAX_TOKENS_PER_RESPONSE,
+          // OpenRouter: include authoritative cost in the final usage chunk
+          usage: { include: true },
           ...(temperature !== null ? { temperature } : {}),
         }),
         signal: request.signal,
@@ -128,6 +130,7 @@ export async function POST(request: Request) {
         let buffer = "";
         let promptTokens = 0;
         let completionTokens = 0;
+        let reportedCostUsd: number | null = null;
 
         try {
           while (true) {
@@ -145,8 +148,12 @@ export async function POST(request: Request) {
               try {
                 const json = JSON.parse(trimmed.slice(6));
                 if (json.usage) {
-                  promptTokens = json.usage.prompt_tokens ?? 0;
-                  completionTokens = json.usage.completion_tokens ?? 0;
+                  promptTokens = json.usage.prompt_tokens ?? promptTokens;
+                  completionTokens = json.usage.completion_tokens ?? completionTokens;
+                  // OpenRouter reports authoritative USD cost when usage.include is set.
+                  if (typeof json.usage.cost === "number") {
+                    reportedCostUsd = json.usage.cost;
+                  }
                 }
               } catch { /* ignore parse errors */ }
             }
@@ -155,19 +162,26 @@ export async function POST(request: Request) {
           controller.close();
 
           if (userId && preDebitedAmount > 0) {
-            const actualCost = computeCost(model, promptTokens, completionTokens);
-            const actualCredits = Math.ceil(actualCost / USD_PER_CREDIT);
-            // If we got usage data, reconcile (refund excess). Otherwise keep
-            // the full pre-debit — aborts/missing usage shouldn't be free.
-            if (promptTokens > 0 || completionTokens > 0) {
+            let actualCredits: number | null = null;
+            if (reportedCostUsd !== null) {
+              // Source of truth: OpenRouter's reported cost.
+              actualCredits = Math.ceil(reportedCostUsd / USD_PER_CREDIT);
+            } else if (promptTokens > 0 || completionTokens > 0) {
+              // Fallback: compute from local pricing table.
+              const actualCost = computeCost(model, promptTokens, completionTokens);
+              actualCredits = Math.ceil(actualCost / USD_PER_CREDIT);
+            }
+
+            if (actualCredits !== null) {
               const diff = preDebitedAmount - actualCredits;
               if (diff > 0) {
                 await refundCredits(userId, diff).catch(console.error);
               } else if (diff < 0) {
-                // Cost exceeded estimate (rare with token cap) — debit the rest.
+                // Actual cost exceeded estimate — debit the remainder.
                 await debitCredits(userId, -diff).catch(console.error);
               }
             }
+            // No usage at all → keep full pre-debit (worst case).
           }
         }
       },

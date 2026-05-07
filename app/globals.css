@@ -18,6 +18,13 @@
 body {
   background: var(--background);
   color: var(--foreground);
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+html {
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 @keyframes panel-in {
