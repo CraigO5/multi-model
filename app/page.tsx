@@ -1,6 +1,12 @@
 import Link from "next/link";
+import { auth } from "@/lib/auth/server";
 
-export default function LandingPage() {
+export const dynamic = "force-dynamic";
+
+export default async function LandingPage() {
+  const { data: session } = await auth.getSession();
+  const loggedIn = !!session?.user;
+
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "var(--cz-bg)", color: "var(--cz-text)" }}>
       {/* Header */}
@@ -9,30 +15,53 @@ export default function LandingPage() {
         style={{ borderBottom: "1px solid rgba(237,230,221,0.06)" }}
       >
         <div className="flex items-center gap-3">
-          <div
-            className="flex items-center justify-center text-base font-bold"
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 9,
-              background: "var(--cz-accent)",
-              color: "#0a0a0d",
-            }}
-          >
-            M
-          </div>
+          <img src="/logo.png" alt="Multi-Model" style={{ width: 30, height: 30, borderRadius: 9 }} />
           <div>
             <div style={{ fontSize: 14.5, fontWeight: 600, letterSpacing: "-0.01em" }}>Multi-Model</div>
             <div style={{ fontSize: 11, opacity: 0.5, marginTop: 1 }}>3 AIs, one chat</div>
           </div>
         </div>
-        <Link
-          href="/chat"
-          style={{ fontSize: 13, opacity: 0.65, transition: "opacity 0.12s" }}
-          className="hover:opacity-100"
-        >
-          Launch app →
-        </Link>
+
+        {loggedIn ? (
+          <Link
+            href="/chat"
+            className="inline-flex items-center"
+            style={{
+              padding: "7px 16px",
+              borderRadius: 999,
+              background: "var(--cz-text)",
+              color: "#0a0a0d",
+              fontWeight: 600,
+              fontSize: 13,
+            }}
+          >
+            Launch app
+          </Link>
+        ) : (
+          <div className="flex items-center gap-3">
+            <Link
+              href="/auth/sign-in"
+              style={{ fontSize: 13, opacity: 0.65, transition: "opacity 0.12s" }}
+              className="hover:opacity-100"
+            >
+              Sign in
+            </Link>
+            <Link
+              href="/auth/sign-up"
+              className="inline-flex items-center"
+              style={{
+                padding: "7px 16px",
+                borderRadius: 999,
+                background: "var(--cz-accent)",
+                color: "#0a0a0d",
+                fontWeight: 600,
+                fontSize: 13,
+              }}
+            >
+              Sign up
+            </Link>
+          </div>
+        )}
       </header>
 
       {/* Hero */}
@@ -49,22 +78,31 @@ export default function LandingPage() {
         >
           Compare responses from Claude, Gemini, DeepSeek and more — side by side. Pick the best. Stay in control.
         </p>
-        <Link
-          href="/chat"
-          className="mt-10 inline-flex items-center"
-          style={{
-            padding: "12px 28px",
-            borderRadius: 999,
-            background: "var(--cz-accent)",
-            color: "#0a0a0d",
-            fontWeight: 600,
-            fontSize: 14,
-            transition: "opacity 0.12s",
-          }}
-          onMouseEnter={undefined}
-        >
-          Start comparing →
-        </Link>
+        <div className="mt-10 flex flex-col items-center gap-3">
+          <Link
+            href="/chat"
+            className="inline-flex items-center"
+            style={{
+              padding: "12px 28px",
+              borderRadius: 999,
+              background: "var(--cz-accent)",
+              color: "#0a0a0d",
+              fontWeight: 600,
+              fontSize: 14,
+            }}
+          >
+            {loggedIn ? "Go to app" : "Start comparing"}
+          </Link>
+          {!loggedIn && (
+            <Link
+              href="/auth/sign-up"
+              style={{ fontSize: 13, opacity: 0.45, transition: "opacity 0.12s" }}
+              className="hover:opacity-70"
+            >
+              Create an account
+            </Link>
+          )}
+        </div>
 
         {/* Feature grid */}
         <div className="mt-24 grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-4xl text-left">

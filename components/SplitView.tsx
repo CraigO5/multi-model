@@ -355,7 +355,7 @@ export function SplitView({
                 return (
                   <div
                     key={`post-${j}`}
-                    className={`flex flex-col animate-msg-in ${message.role === "user" ? "items-end" : "items-start"}`}
+                    className={`flex flex-col ${message.role === "user" ? "items-end" : "items-start"} ${message.role === "user" ? "animate-msg-in" : ""}`}
                   >
                     {msgMeta && message.role === "assistant" && (
                       <div className="flex items-center gap-1.5 mb-1.5">

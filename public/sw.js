@@ -1,4 +1,4 @@
-const CACHE_NAME = "multi-model-v1";
+const CACHE_NAME = "multi-model-v2";
 const PRECACHE = ["/chat", "/logo.png"];
 
 self.addEventListener("install", (e) => {
@@ -19,15 +19,25 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
+
+  const url = new URL(e.request.url);
+
+  // Never intercept API routes, auth flows, or cross-origin requests.
+  // These must always go straight to the network so cookies/sessions stay fresh.
+  if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith("/api/")) return;
+  if (url.pathname.startsWith("/auth/")) return;
+  if (url.pathname.startsWith("/_next/")) return;
+
   e.respondWith(
     fetch(e.request)
       .then((res) => {
-        if (res.ok && e.request.url.startsWith(self.location.origin)) {
+        if (res.ok) {
           const clone = res.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(e.request, clone));
         }
         return res;
       })
-      .catch(() => caches.match(e.request))
+      .catch(() => caches.match(e.request).then((cached) => cached ?? Response.error()))
   );
 });

@@ -5,7 +5,7 @@ import remarkGfm from "remark-gfm";
 
 export function Markdown({ content }: { content: string }) {
   return (
-    <div className="markdown text-sm leading-relaxed text-zinc-300">
+    <div className="markdown text-sm leading-relaxed text-zinc-300 min-w-0 max-w-full" style={{ overflowWrap: "break-word", wordBreak: "break-word" }}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -63,7 +63,7 @@ export function Markdown({ content }: { content: string }) {
             );
           },
           pre: ({ children }) => (
-            <pre className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 my-3 overflow-x-auto text-xs leading-relaxed">
+            <pre className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 my-3 text-xs leading-relaxed max-w-full" style={{ overflowX: "auto" }}>
               {children}
             </pre>
           ),
@@ -78,8 +78,8 @@ export function Markdown({ content }: { content: string }) {
           em: ({ children }) => <em className="italic">{children}</em>,
           hr: () => <hr className="border-zinc-800/60 my-4" />,
           table: ({ children }) => (
-            <div className="overflow-x-auto my-3 rounded-lg border border-zinc-800">
-              <table className="text-xs border-collapse w-full">{children}</table>
+            <div className="my-3 rounded-lg border border-zinc-800 max-w-full" style={{ overflowX: "auto" }}>
+              <table className="text-xs border-collapse">{children}</table>
             </div>
           ),
           th: ({ children }) => (

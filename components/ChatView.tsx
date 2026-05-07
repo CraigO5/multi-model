@@ -21,7 +21,7 @@ import {
   SliderIcon,
   StarIcon,
 } from "@/components/icons";
-import { GridFour } from "@phosphor-icons/react";
+import { GridFour, Sidebar } from "@phosphor-icons/react";
 import { RateLimitMessage } from "@/components/RateLimitMessage";
 
 type Props = {
@@ -51,6 +51,7 @@ type Props = {
   streamingContent: Record<string, string>;
   handleRegenerate: (modelId: string, userMsgIdx: number) => void;
   onOpenSidebar: () => void;
+  isAnalyzing: boolean;
 };
 
 type BlindInfo = {
@@ -119,11 +120,32 @@ export function ChatView({
   streamingContent,
   handleRegenerate,
   onOpenSidebar,
+  isAnalyzing,
 }: Props) {
   const [chosenByRound, setChosenByRound] = useState<Map<number, number>>(new Map());
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [sideBySide, setSideBySide] = useState(false);
+  const [isPwa, setIsPwa] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const standalone = window.matchMedia("(display-mode: standalone)").matches;
+    setIsPwa(standalone);
+    if (standalone) setSideBySide(false);
+  }, []);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const apply = (matches: boolean) => {
+      setIsMobile(matches);
+      if (matches) setSideBySide(false);
+    };
+    apply(mq.matches);
+    const handler = (e: MediaQueryListEvent) => apply(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
 
   useEffect(() => {
     setChosenByRound(new Map());
@@ -211,10 +233,11 @@ export function ChatView({
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
             onClick={onOpenSidebar}
-            className="md:hidden shrink-0 cursor-pointer active:scale-95 transition-transform"
-            style={{ background: "rgba(237,230,221,0.06)", border: 0, padding: 4, borderRadius: 10 }}
+            aria-label="Open sidebar"
+            className="md:hidden shrink-0 cursor-pointer active:scale-95 transition-transform flex items-center justify-center"
+            style={{ background: "rgba(237,230,221,0.06)", border: 0, width: 32, height: 32, borderRadius: 10, color: "var(--cz-text)" }}
           >
-            <img src="/logo.png" alt="Menu" className="w-7 h-7 rounded-lg object-contain" />
+            <Sidebar size={18} />
           </button>
           <h1 className="truncate flex-1 min-w-0" style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-0.01em" }}>
             {activeChat?.title ?? "New chat"}
@@ -264,11 +287,11 @@ export function ChatView({
             <span className="hidden sm:inline" style={{ fontSize: 12 }}>{models.length} AIs</span>
           </button>
 
-          {messages.length > 0 && models.length > 1 && !blindMode && (
+          {messages.length > 0 && models.length > 1 && !blindMode && !isPwa && !isMobile && (
             <button
               onClick={() => setSideBySide(!sideBySide)}
               title={sideBySide ? "Stack responses" : "Show responses side by side"}
-              className="hidden md:flex items-center gap-1.5"
+              className="flex items-center gap-1.5"
               style={sideBySide ? pillOn : pillBase}
               onMouseEnter={e => { if (!sideBySide) { (e.currentTarget as HTMLElement).style.background = "rgba(237,230,221,0.06)"; (e.currentTarget as HTMLElement).style.opacity = "1"; } }}
               onMouseLeave={e => { if (!sideBySide) { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.opacity = "0.65"; } }}
@@ -278,11 +301,11 @@ export function ChatView({
             </button>
           )}
 
-          {messages.length > 0 && models.length > 1 && !blindMode && (
+          {messages.length > 0 && models.length > 1 && !blindMode && !isMobile && (
             <button
               onClick={handleSplit}
               title="Split into separate threads per model"
-              className="hidden md:flex items-center gap-1.5"
+              className="flex items-center gap-1.5"
               style={pillBase}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(237,230,221,0.06)"; (e.currentTarget as HTMLElement).style.opacity = "1"; }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.opacity = "0.65"; }}
@@ -388,7 +411,7 @@ export function ChatView({
 
       {/* ── Messages feed ── */}
       <div ref={unifiedScrollRef} className="flex-1 overflow-y-auto" style={{ display: "flex", flexDirection: "column" }}>
-        <div className="px-4 sm:px-8" style={{ paddingTop: 14, paddingBottom: 24, display: "flex", flexDirection: "column", gap: 22, maxWidth: sideBySide ? "100%" : 760, width: "100%", margin: "0 auto", flex: 1 }}>
+        <div className="px-4 sm:px-8" style={{ paddingTop: 14, paddingBottom: 24, display: "flex", flexDirection: "column", gap: isMobile ? 34 : 22, maxWidth: sideBySide ? "100%" : 760, width: "100%", margin: "0 auto", flex: 1 }}>
           {messages.length === 0 && Object.keys(streamingContent).length === 0 && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 20 }}>
               <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
@@ -435,10 +458,10 @@ export function ChatView({
               return (
                 <div
                   key={i}
-                  className={`flex flex-col animate-msg-in items-start ${canPick ? "cursor-pointer" : ""}`}
+                  className={`flex flex-col items-start ${canPick ? "cursor-pointer" : ""}`}
                   onClick={canPick ? () => pickResponse(i) : undefined}
                 >
-                  <div className="group w-full" style={{ display: "flex", gap: compact ? 10 : 13, flexDirection: compact ? "column" : "row", alignItems: "flex-start" }}>
+                  <div className="group w-full" style={{ display: "flex", gap: compact ? 4 : 13, flexDirection: compact ? "column" : "row", alignItems: "flex-start" }}>
                     {/* Avatar */}
                     <div style={{ flexShrink: 0, paddingTop: 2, display: "flex", alignItems: "center", gap: 8 }}>
                       {message.synthesis ? (
@@ -455,8 +478,16 @@ export function ChatView({
                         <div style={{ width: compact ? 22 : 28, height: compact ? 22 : 28, borderRadius: "50%", background: "rgba(237,230,221,0.08)" }} />
                       )}
                       {compact && (
-                        <span style={{ fontSize: 11.5, fontWeight: 600 }}>
-                          {message.synthesis ? "Synthesis" : canPick ? `Response ${blindInfo?.letter}` : meta?.name}
+                        <span style={{ fontSize: 11.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
+                          <span style={{ color: message.synthesis ? "var(--cz-accent)" : "inherit" }}>
+                            {message.synthesis ? "Synthesis" : canPick ? `Response ${blindInfo?.letter}` : meta?.name}
+                          </span>
+                          {!canPick && message.usage && (
+                            <span style={{ opacity: 0.4, fontWeight: 400 }}>
+                              · {formatUsd(message.usage.cost)}
+                              {message.usage.latencyMs !== undefined && ` · ${formatLatency(message.usage.latencyMs)}`}
+                            </span>
+                          )}
                         </span>
                       )}
                     </div>
@@ -634,40 +665,108 @@ export function ChatView({
             }
 
             // Default stacked rendering
-            return messages.map((message, i) => renderMessageCard(message, i));
+            return messages.map((message, i) => renderMessageCard(message, i, isMobile));
           })()}
 
-          {/* Streaming */}
-          {Object.entries(streamingContent).map(([modelId, content]) => {
-            if (!content) return null;
-            const meta = MODELS.find((m) => m.id === modelId);
+          {/* Per-model waiting + streaming indicators */}
+          {(() => {
+            if (!isLoading && Object.keys(streamingContent).length === 0) return null;
+            // Models that have already appended a final message this round
+            const lastUserIdx = (() => { for (let i = messages.length - 1; i >= 0; i--) { if (messages[i].role === "user") return i; } return -1; })();
+            const respondedIds = new Set(messages.slice(lastUserIdx + 1).filter((m) => m.role === "assistant" && m.model && !m.synthesis).map((m) => m.model!));
+
             return (
-              <div key={`stream-${modelId}`} className="animate-msg-in" style={{ display: "flex", gap: 13 }}>
-                <div style={{ flexShrink: 0, paddingTop: 2 }}>
-                  {meta ? <ModelIcon model={meta} /> : <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(237,230,221,0.08)" }} />}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
-                    {meta && <span style={{ fontSize: 12.5, fontWeight: 600 }}>{meta.name}</span>}
-                    <span style={{ display: "flex", gap: 3 }}>
-                      {[0, 1, 2].map((j) => (
-                        <span key={j} className="inline-block rounded-full animate-bounce" style={{ width: 4, height: 4, background: "rgba(237,230,221,0.3)", animationDelay: `${j * 150}ms` }} />
-                      ))}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 14.5, lineHeight: 1.65, opacity: 0.9 }}>
-                    <Markdown content={content} />
-                  </div>
+              <>
+                {/* Waiting — model queued but hasn't started streaming */}
+                {isLoading && models.filter((m) => !(m.id in streamingContent) && !respondedIds.has(m.id)).map((model) => {
+                  const meta = MODELS.find((m) => m.id === model.id);
+                  return (
+                    <div key={`wait-${model.id}`} className="animate-msg-in" style={{ display: "flex", gap: isMobile ? 4 : 13, flexDirection: isMobile ? "column" : "row", alignItems: "flex-start" }}>
+                      <div style={{ flexShrink: 0, paddingTop: 2, display: "flex", alignItems: "center", gap: 8 }}>
+                        {meta ? <ModelIcon model={meta} size={isMobile ? 22 : 28} /> : <div style={{ width: isMobile ? 22 : 28, height: isMobile ? 22 : 28, borderRadius: "50%", background: "rgba(237,230,221,0.08)" }} />}
+                        {isMobile && meta && <span style={{ fontSize: 11.5, fontWeight: 600, opacity: 0.5 }}>{meta.name}</span>}
+                        {isMobile && (
+                          <span style={{ display: "flex", gap: 3, marginLeft: 2 }}>
+                            {[0, 1, 2].map((j) => (
+                              <span key={j} className="inline-block rounded-full animate-bounce" style={{ width: 4, height: 4, background: "rgba(237,230,221,0.25)", animationDelay: `${j * 150}ms` }} />
+                            ))}
+                          </span>
+                        )}
+                      </div>
+                      {!isMobile && (
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
+                            {meta && <span style={{ fontSize: 12.5, fontWeight: 600, opacity: 0.5 }}>{meta.name}</span>}
+                            <span style={{ display: "flex", gap: 3 }}>
+                              {[0, 1, 2].map((j) => (
+                                <span key={j} className="inline-block rounded-full animate-bounce" style={{ width: 4, height: 4, background: "rgba(237,230,221,0.25)", animationDelay: `${j * 150}ms` }} />
+                              ))}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Streaming — content arriving */}
+                {Object.entries(streamingContent).map(([modelId, content]) => {
+                  const meta = MODELS.find((m) => m.id === modelId);
+                  return (
+                    <div key={`stream-${modelId}`} className="animate-msg-in" style={{ display: "flex", gap: isMobile ? 4 : 13, flexDirection: isMobile ? "column" : "row", alignItems: "flex-start" }}>
+                      <div style={{ flexShrink: 0, paddingTop: 2, display: "flex", alignItems: "center", gap: 8 }}>
+                        {meta ? <ModelIcon model={meta} size={isMobile ? 22 : 28} /> : <div style={{ width: isMobile ? 22 : 28, height: isMobile ? 22 : 28, borderRadius: "50%", background: "rgba(237,230,221,0.08)" }} />}
+                        {isMobile && (
+                          <>
+                            {meta && <span style={{ fontSize: 11.5, fontWeight: 600 }}>{meta.name}</span>}
+                            <span style={{ display: "flex", gap: 3, marginLeft: 2 }}>
+                              {[0, 1, 2].map((j) => (
+                                <span key={j} className="inline-block rounded-full animate-bounce" style={{ width: 4, height: 4, background: "rgba(237,230,221,0.3)", animationDelay: `${j * 150}ms` }} />
+                              ))}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0, width: isMobile ? "100%" : undefined }}>
+                        {!isMobile && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
+                            {meta && <span style={{ fontSize: 12.5, fontWeight: 600 }}>{meta.name}</span>}
+                            <span style={{ display: "flex", gap: 3 }}>
+                              {[0, 1, 2].map((j) => (
+                                <span key={j} className="inline-block rounded-full animate-bounce" style={{ width: 4, height: 4, background: "rgba(237,230,221,0.3)", animationDelay: `${j * 150}ms` }} />
+                              ))}
+                            </span>
+                          </div>
+                        )}
+                        <div style={{ fontSize: isMobile ? 13 : 14.5, lineHeight: 1.65, opacity: 0.9 }}>
+                          <Markdown content={content} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            );
+          })()}
+
+          {/* Analysis loading indicator */}
+          {isAnalyzing && (
+            <div className="animate-msg-in" style={{ display: "flex", gap: 13 }}>
+              <div style={{ flexShrink: 0, paddingTop: 2 }}>
+                <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(237,230,221,0.08)", border: "1.5px solid rgba(237,230,221,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <SparkleIcon size={13} style={{ color: "var(--cz-accent)" }} />
                 </div>
               </div>
-            );
-          })}
-
-          {isLoading && Object.keys(streamingContent).length === 0 && (
-            <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "4px 41px" }}>
-              {[0, 150, 300].map((delay) => (
-                <div key={delay} className="rounded-full animate-bounce" style={{ width: 6, height: 6, background: "rgba(237,230,221,0.25)", animationDelay: `${delay}ms` }} />
-              ))}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--cz-accent)", opacity: 0.7 }}>Analyzing…</span>
+                  <span style={{ display: "flex", gap: 3 }}>
+                    {[0, 1, 2].map((j) => (
+                      <span key={j} className="inline-block rounded-full animate-bounce" style={{ width: 4, height: 4, background: "var(--cz-accent)", opacity: 0.4, animationDelay: `${j * 150}ms` }} />
+                    ))}
+                  </span>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -697,7 +796,7 @@ export function ChatView({
           <input
             ref={inputRef}
             type="text"
-            placeholder={overLimit ? "Daily limit reached" : "Ask anything…"}
+            placeholder={overLimit ? "Limit reached" : "Ask anything…"}
             value={userMessage}
             onChange={(e) => setUserMessage(e.target.value.slice(0, MAX_INPUT_CHARS))}
             onKeyDown={(e) => {

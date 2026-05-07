@@ -16,9 +16,17 @@ import { AnalysisPanel } from "@/components/AnalysisPanel";
 import { AnalyticsView } from "@/components/AnalyticsView";
 import { SplitView } from "@/components/SplitView";
 import { ChatView } from "@/components/ChatView";
+import { TrialEndModal } from "@/components/TrialEndModal";
+import { LockedFeatureModal } from "@/components/LockedFeatureModal";
 import { SplitIcon } from "@/components/icons";
+import { authClient } from "@/lib/auth/client";
+
+const TRIAL_LIMIT = 7;
 
 export default function Home() {
+  const { data: session } = authClient.useSession();
+  const isAuthenticated = !!session?.user;
+
   // ─── Core state ──────────────────────────────────────────────────────────
   const [userMessage, setUserMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +37,7 @@ export default function Home() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [systemPrompt, setSystemPrompt] = useState("");
-  const [dailySpend, setDailySpend] = useState(0);
+  const [credits, setCredits] = useState<number | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
   // Split state
@@ -51,9 +59,12 @@ export default function Home() {
   const [analysisModelId, setAnalysisModelId] = useState<string>(MODELS[0].id);
   const [analysisPrompt, setAnalysisPrompt] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [temperature, setTemperature] = useState(1.0);
+  const temperature = 1.0;
   const [blindMode, setBlindMode] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [loadedChatIds, setLoadedChatIds] = useState<Set<string>>(new Set());
+  const [trialCount, setTrialCount] = useState(0);
+  const [lockedFeature, setLockedFeature] = useState<string | null>(null);
 
   // Streaming content: modelId → partial content during streaming
   const [streamingContent, setStreamingContent] = useState<Record<string, string>>({});
@@ -71,7 +82,12 @@ export default function Home() {
   // ─── Derived ─────────────────────────────────────────────────────────────
   const activeChat = chats.find((c) => c.id === activeChatId) ?? null;
   const messages: ChatMessage[] = activeChat?.messages ?? [];
-  const overLimit = dailySpend >= 0.25; // DAILY_LIMIT_USD
+  const trialLimited = !isAuthenticated && trialCount >= TRIAL_LIMIT;
+  const overLimit = trialLimited || (credits !== null && credits <= 0);
+
+  if (typeof window !== "undefined") {
+    console.log("[render]", { isAuthenticated, trialCount, credits, trialLimited, overLimit, sessionUser: session?.user?.email });
+  }
 
   const totalUsage = messages.reduce(
     (acc, m) => {
@@ -226,23 +242,12 @@ export default function Home() {
   const chartMaxIdx = Math.max(1, ...Object.values(chartSeries).map((s) => s.length));
   const chartMaxVal = Math.max(1, ...Object.values(chartSeries).flat());
 
-  // ─── localStorage hydration ───────────────────────────────────────────────
+  // ─── localStorage hydration (preferences only) ───────────────────────────
   useEffect(() => {
     try {
-      const storedChats = localStorage.getItem("chats");
-      if (storedChats) {
-        const parsed: Chat[] = JSON.parse(storedChats);
-        setChats(parsed);
-        if (parsed.length > 0) setActiveChatId(parsed[0].id);
-      }
       const storedPrompt = localStorage.getItem("systemPrompt");
       if (storedPrompt) setSystemPrompt(storedPrompt);
 
-      const storedSpend = localStorage.getItem("dailySpend");
-      if (storedSpend) {
-        const parsed = JSON.parse(storedSpend);
-        if (parsed.date === todayKey()) setDailySpend(parsed.amount);
-      }
       const storedRL = localStorage.getItem("rateLimited");
       if (storedRL) {
         const parsed: Record<string, number> = JSON.parse(storedRL);
@@ -251,13 +256,6 @@ export default function Home() {
         );
         setRateLimited(cleaned);
       }
-      const storedTemplates = localStorage.getItem("templates");
-      if (storedTemplates) setTemplates(JSON.parse(storedTemplates));
-
-      const storedAnalysisModel = localStorage.getItem("analysisModelId");
-      if (storedAnalysisModel && MODELS.some((m) => m.id === storedAnalysisModel)) {
-        setAnalysisModelId(storedAnalysisModel);
-      }
       const storedActiveModels = localStorage.getItem("activeModels");
       if (storedActiveModels) {
         const ids: string[] = JSON.parse(storedActiveModels);
@@ -265,11 +263,6 @@ export default function Home() {
           .map((id) => MODELS.find((m) => m.id === id))
           .filter((m): m is (typeof MODELS)[number] => Boolean(m));
         if (restored.length > 0) setModels(restored);
-      }
-      const storedTemp = localStorage.getItem("temperature");
-      if (storedTemp) {
-        const parsed = parseFloat(storedTemp);
-        if (!Number.isNaN(parsed)) setTemperature(parsed);
       }
     } catch (e) {
       console.error("Failed to load from localStorage:", e);
@@ -280,24 +273,71 @@ export default function Home() {
     return () => clearInterval(id);
   }, []);
 
-  // ─── localStorage persistence ─────────────────────────────────────────────
-  useEffect(() => {
-    if (!hydrated) return;
-    localStorage.setItem("chats", JSON.stringify(chats));
-  }, [chats, hydrated]);
+  // ─── API hydration ────────────────────────────────────────────────────────
+  const refreshCredits = async () => {
+    try {
+      const r = await fetch("/api/credits");
+      console.log("[refreshCredits] response status", r.status);
+      if (!r.ok) return;
+      const data = await r.json();
+      console.log("[refreshCredits] data", data);
+      if (data?.trial) {
+        setCredits(null);
+        setTrialCount(data.trialUsed ?? 0);
+        console.log("[refreshCredits] set trialCount =", data.trialUsed ?? 0);
+      } else if (typeof data?.balance === "number") {
+        setCredits(data.balance);
+        console.log("[refreshCredits] set credits =", data.balance);
+      }
+    } catch (e) {
+      console.error("[refreshCredits] error", e);
+    }
+  };
 
+  useEffect(() => {
+    refreshCredits();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    fetch("/api/chats")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: unknown) => {
+        if (!Array.isArray(data)) return;
+        setChats(data as Chat[]);
+        if (data.length > 0) setActiveChatId((prev) => prev ?? (data[0] as Chat).id);
+      })
+      .catch(console.error);
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    fetch("/api/templates")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: unknown) => { if (Array.isArray(data)) setTemplates(data as PromptTemplate[]); })
+      .catch(console.error);
+  }, [isAuthenticated]);
+
+  // Load messages for active chat on demand
+  useEffect(() => {
+    if (!activeChatId || loadedChatIds.has(activeChatId)) return;
+    fetch(`/api/chats/${activeChatId}/messages`)
+      .then((r) => r.json())
+      .then((msgs: ChatMessage[]) => {
+        setChats((prev) =>
+          prev.map((c) => (c.id === activeChatId ? { ...c, messages: msgs } : c))
+        );
+        setLoadedChatIds((prev) => new Set([...prev, activeChatId]));
+      })
+      .catch(console.error);
+  }, [activeChatId, loadedChatIds]);
+
+  // ─── localStorage persistence (preferences only) ─────────────────────────
   useEffect(() => {
     if (!hydrated) return;
     localStorage.setItem("systemPrompt", systemPrompt);
   }, [systemPrompt, hydrated]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    localStorage.setItem(
-      "dailySpend",
-      JSON.stringify({ date: todayKey(), amount: dailySpend }),
-    );
-  }, [dailySpend, hydrated]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -306,23 +346,8 @@ export default function Home() {
 
   useEffect(() => {
     if (!hydrated) return;
-    localStorage.setItem("templates", JSON.stringify(templates));
-  }, [templates, hydrated]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    localStorage.setItem("analysisModelId", analysisModelId);
-  }, [analysisModelId, hydrated]);
-
-  useEffect(() => {
-    if (!hydrated) return;
     localStorage.setItem("activeModels", JSON.stringify(models.map((m) => m.id)));
   }, [models, hydrated]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    localStorage.setItem("temperature", String(temperature));
-  }, [temperature, hydrated]);
 
   // ─── Scroll pinning ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -340,18 +365,19 @@ export default function Home() {
   }, [isSplit, slots]);
 
   // ─── Chat helpers ─────────────────────────────────────────────────────────
-  const ensureChat = (firstMessage: string): string => {
+  const ensureChat = async (firstMessage: string): Promise<string> => {
     if (activeChatId) return activeChatId;
     const id = crypto.randomUUID();
-    const chat: Chat = {
-      id,
-      title: firstMessage.slice(0, 40) || "New chat",
-      messages: [],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
+    const title = firstMessage.slice(0, 40) || "New chat";
+    const chat: Chat = { id, title, messages: [], createdAt: Date.now(), updatedAt: Date.now() };
     setChats((prev) => [chat, ...prev]);
     setActiveChatId(id);
+    setLoadedChatIds((prev) => new Set([...prev, id]));
+    await fetch("/api/chats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, title }),
+    });
     return id;
   };
 
@@ -363,9 +389,20 @@ export default function Home() {
           : c,
       ),
     );
+    fetch(`/api/chats/${chatId}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: crypto.randomUUID(), ...message }),
+    }).catch(console.error);
+    fetch(`/api/chats/${chatId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ updatedAt: new Date().toISOString() }),
+    }).catch(console.error);
   };
 
   const newChat = () => {
+    if (!isAuthenticated) { setLockedFeature("Multiple chats"); return; }
     setView("chat");
     setActiveChatId(null);
     setIsSplit(false);
@@ -373,6 +410,7 @@ export default function Home() {
   };
 
   const switchChat = (id: string) => {
+    if (!isAuthenticated) { setLockedFeature("Chat history"); return; }
     setView("chat");
     setActiveChatId(id);
     setIsSplit(false);
@@ -380,15 +418,18 @@ export default function Home() {
   };
 
   const deleteChat = (id: string) => {
+    if (!isAuthenticated) { setLockedFeature("Chat history"); return; }
     setChats((prev) => prev.filter((c) => c.id !== id));
     if (activeChatId === id) {
       setActiveChatId(null);
       setIsSplit(false);
       setSlots([]);
     }
+    fetch(`/api/chats/${id}`, { method: "DELETE" }).catch(console.error);
   };
 
   const editTitle = (id: string, newTitle: string) => {
+    if (!isAuthenticated) { setLockedFeature("Renaming chats"); return; }
     const trimmed = newTitle.trim();
     if (!trimmed) return;
     setChats((prev) =>
@@ -396,6 +437,11 @@ export default function Home() {
         c.id === id ? { ...c, title: trimmed, updatedAt: Date.now() } : c,
       ),
     );
+    fetch(`/api/chats/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: trimmed }),
+    }).catch(console.error);
   };
 
   const addModel = (model: Model) => {
@@ -423,6 +469,14 @@ export default function Home() {
     });
     if (!response.ok) {
       if (response.status === 429) throw new Error("RATE_LIMIT");
+      if (response.status === 402) {
+        const body = await response.json().catch(() => ({}));
+        if (body?.error === "trial_exhausted") {
+          setTrialCount(TRIAL_LIMIT);
+          throw new Error("TRIAL_EXHAUSTED");
+        }
+        throw new Error("OUT_OF_CREDITS");
+      }
       throw new Error(`HTTP ${response.status}`);
     }
     const reader = response.body!.getReader();
@@ -499,27 +553,35 @@ export default function Home() {
 
   // ─── Templates ───────────────────────────────────────────────────────────
   const saveTemplate = () => {
+    if (!isAuthenticated) { setLockedFeature("Saved templates"); return; }
     if (!systemPrompt.trim()) return;
     const name =
-      prompt("Template name?", systemPrompt.slice(0, 30))?.trim() || null;
+      window.prompt("Template name?", systemPrompt.slice(0, 30))?.trim() || null;
     if (!name) return;
-    setTemplates((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), name, prompt: systemPrompt },
-    ]);
+    const id = crypto.randomUUID();
+    setTemplates((prev) => [...prev, { id, name, prompt: systemPrompt }]);
+    fetch("/api/templates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, name, prompt: systemPrompt }),
+    }).catch(console.error);
   };
 
   const loadTemplate = (t: PromptTemplate) => {
+    if (!isAuthenticated) { setLockedFeature("Saved templates"); return; }
     setSystemPrompt(t.prompt);
     setShowTemplates(false);
   };
 
   const deleteTemplate = (id: string) => {
+    if (!isAuthenticated) { setLockedFeature("Saved templates"); return; }
     setTemplates((prev) => prev.filter((t) => t.id !== id));
+    fetch(`/api/templates/${id}`, { method: "DELETE" }).catch(console.error);
   };
 
   // ─── Export ───────────────────────────────────────────────────────────────
   const exportChat = (chat: Chat) => {
+    if (!isAuthenticated) { setLockedFeature("Exporting chats"); return; }
     const lines: string[] = [`# ${chat.title}`, ""];
     chat.messages.forEach((m) => {
       if (m.role === "user") {
@@ -546,6 +608,7 @@ export default function Home() {
     preset: keyof typeof ANALYSES | "custom",
     customText?: string,
   ) => {
+    if (!isAuthenticated) { setLockedFeature("Analysis tools"); return; }
     if (!canAnalyze || !activeChatId || lastUserIdx === -1) return;
 
     const analysisModel = MODELS.find((m) => m.id === analysisModelId) ?? MODELS[0];
@@ -555,15 +618,19 @@ export default function Home() {
     }
 
     const userQ = messages[lastUserIdx];
-    const instruction =
+    let instruction =
       preset === "custom"
         ? (customText ?? "").trim()
         : ANALYSES[preset].prompt;
     if (!instruction) return;
 
+    if (preset === "pickwinner" && systemPrompt) {
+      instruction += `\n\nThe user gave the AIs this context: "${systemPrompt}" — factor in how well each model followed it.`;
+    }
+
     const fullPrompt = `${instruction}
 
-${systemPrompt ? `SYSTEM PROMPT: ${systemPrompt}\n\n` : ""}QUESTION: ${userQ.content}
+QUESTION: ${userQ.content}
 
 ${latestResponses
   .map((r) => {
@@ -594,7 +661,6 @@ ${latestResponses
         synthesis: true,
         usage: { ...result.usage, cost, latencyMs },
       });
-      setDailySpend((p) => p + cost);
       if (preset === "custom") setAnalysisPrompt("");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error";
@@ -612,6 +678,7 @@ ${latestResponses
       });
     } finally {
       setIsAnalyzing(false);
+      refreshCredits();
     }
   };
 
@@ -623,7 +690,19 @@ ${latestResponses
     setUserMessage("");
     setError(null);
 
-    const chatId = ensureChat(content);
+    // Consume one trial message (no-op for authenticated users)
+    if (!isAuthenticated) {
+      const r = await fetch("/api/trial/use", { method: "POST" });
+      const d = await r.json().catch(() => ({}));
+      console.log("[handleSendMessage] /api/trial/use", { status: r.status, data: d });
+      if (!r.ok) {
+        setTrialCount(TRIAL_LIMIT);
+        return;
+      }
+      setTrialCount(d.count ?? TRIAL_LIMIT);
+    }
+
+    const chatId = await ensureChat(content);
     const userMsg: ChatMessage = { role: "user", content };
     appendToChat(chatId, userMsg);
 
@@ -692,12 +771,9 @@ ${latestResponses
 
       // Shuffle so display order is random — can't guess by position
       const shuffled = shuffleArray(settled);
-      let totalCost = 0;
-      shuffled.forEach(({ msg, cost }) => {
+      shuffled.forEach(({ msg }) => {
         appendToChat(chatId, msg);
-        totalCost += cost;
       });
-      if (totalCost > 0) setDailySpend((prev) => prev + totalCost);
     } else {
       // Normal mode: stream results in as they arrive
       await Promise.allSettled(
@@ -739,7 +815,6 @@ ${latestResponses
               model: model.id,
               usage: { ...result.usage, cost, latencyMs },
             });
-            setDailySpend((prev) => prev + cost);
           } catch (e) {
             if (e instanceof Error && e.name === "AbortError") {
               setStreamingContent((prev) => {
@@ -776,6 +851,7 @@ ${latestResponses
 
     abortControllerRef.current = null;
     setIsLoading(false);
+    refreshCredits();
   };
 
   // ─── Regenerate ───────────────────────────────────────────────────────────
@@ -901,6 +977,13 @@ ${latestResponses
               : c,
           ),
         );
+        slot.postSplitMessages.forEach((msg) => {
+          fetch(`/api/chats/${activeChatId}/messages`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: crypto.randomUUID(), ...msg }),
+          }).catch(console.error);
+        });
       }
       setSlots([]);
       setIsSplit(false);
@@ -976,7 +1059,7 @@ ${latestResponses
             : s,
         ),
       );
-      setDailySpend((prev) => prev + cost);
+      refreshCredits();
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {
         setSlots((prev) =>
@@ -1011,8 +1094,14 @@ ${latestResponses
   };
 
   const handleSetView = (v: "chat" | "analytics") => {
+    if (v === "analytics" && !isAuthenticated) { setLockedFeature("Analytics"); return; }
     setView(v);
     if (v === "analytics") { setIsSplit(false); setSlots([]); }
+  };
+
+  const handleSetShowTemplates = (show: boolean) => {
+    if (show && !isAuthenticated) { setLockedFeature("Saved templates"); return; }
+    setShowTemplates(show);
   };
 
   // ─── Shared sidebar props ─────────────────────────────────────────────────
@@ -1027,30 +1116,41 @@ ${latestResponses
     editTitle,
     exportChat,
     overLimit,
-    dailySpend,
+    credits,
+    trialUsed: trialCount,
+    trialLimit: TRIAL_LIMIT,
     isOpen: sidebarOpen,
     onClose: () => setSidebarOpen(false),
+  };
+
+  const handleSetBlindMode = (v: boolean) => {
+    if (v && !isAuthenticated) { setLockedFeature("Blind mode"); return; }
+    setBlindMode(v);
+  };
+
+  const handleSetAnalysisModelId = (id: string) => {
+    if (!isAuthenticated) { setLockedFeature("Custom analysis model"); return; }
+    setAnalysisModelId(id);
   };
 
   const studioProps = {
     latestResponses,
     canAnalyze,
     analysisModelId,
-    setAnalysisModelId,
+    setAnalysisModelId: handleSetAnalysisModelId,
     analysisPrompt,
     setAnalysisPrompt,
     isAnalyzing,
     isRateLimited,
     setShowAnalysisPanel,
+    showAnalysisPanel,
     handleAnalysis,
     view,
     setView: handleSetView,
-    temperature,
-    setTemperature,
     systemPrompt,
     setSystemPrompt,
     showTemplates,
-    setShowTemplates,
+    setShowTemplates: handleSetShowTemplates,
     templates,
     saveTemplate,
     loadTemplate,
@@ -1059,6 +1159,9 @@ ${latestResponses
 
   // ─── Unified layout ───────────────────────────────────────────────────────
   return (
+    <>
+    {trialLimited && <TrialEndModal />}
+    <LockedFeatureModal feature={lockedFeature} onClose={() => setLockedFeature(null)} />
     <div
       className="h-screen flex overflow-hidden"
       style={{ background: "var(--cz-bg)", color: "var(--cz-text)" }}
@@ -1130,10 +1233,11 @@ ${latestResponses
               error={error}
               overLimit={overLimit}
               blindMode={blindMode}
-              setBlindMode={setBlindMode}
+              setBlindMode={handleSetBlindMode}
               streamingContent={streamingContent}
               handleRegenerate={handleRegenerate}
               onOpenSidebar={() => setSidebarOpen(true)}
+              isAnalyzing={isAnalyzing}
             />
           </div>
         </>
@@ -1175,15 +1279,17 @@ ${latestResponses
           error={error}
           overLimit={overLimit}
           blindMode={blindMode}
-          setBlindMode={setBlindMode}
+          setBlindMode={handleSetBlindMode}
           streamingContent={streamingContent}
           handleRegenerate={handleRegenerate}
           onOpenSidebar={() => setSidebarOpen(true)}
+          isAnalyzing={isAnalyzing}
         />
       )}
 
-      {/* Studio panel */}
-      {showAnalysisPanel && <AnalysisPanel {...studioProps} />}
+      {/* Studio panel — always mounted, slides in/out via transform */}
+      <AnalysisPanel {...studioProps} />
     </div>
+    </>
   );
 }

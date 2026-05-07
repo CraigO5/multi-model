@@ -1,27 +1,91 @@
 import { NextResponse } from "next/server";
-import { MAX_TOKENS_PER_RESPONSE } from "@/lib/models";
+import { sql, eq } from "drizzle-orm";
+import { auth } from "@/lib/auth/server";
+import { db } from "@/lib/db";
+import { userCredits } from "@/lib/db/schema";
+import { MAX_TOKENS_PER_RESPONSE, USD_PER_CREDIT } from "@/lib/models";
+import { computeCost, estimateMaxCredits } from "@/lib/utils";
+import { getOrCreateAnonId, checkTrialAllowed, TRIAL_LIMIT } from "@/lib/trial";
 import type { ChatMessage } from "@/types/chat";
+
+const FREE_CREDITS = 2500;
+
+async function getOrInitCredits(userId: string): Promise<number> {
+  const rows = await db.select().from(userCredits).where(eq(userCredits.userId, userId)).limit(1);
+  if (rows.length) return rows[0].balance;
+  await db.insert(userCredits).values({ userId, balance: FREE_CREDITS }).onConflictDoNothing();
+  return FREE_CREDITS;
+}
+
+/**
+ * Atomically debit `amount` from the user's balance.
+ * Returns the new balance, or null if insufficient.
+ */
+async function debitCredits(userId: string, amount: number): Promise<number | null> {
+  if (amount <= 0) {
+    const rows = await db.select({ balance: userCredits.balance }).from(userCredits).where(eq(userCredits.userId, userId)).limit(1);
+    return rows[0]?.balance ?? null;
+  }
+  const rows = await db
+    .update(userCredits)
+    .set({ balance: sql`${userCredits.balance} - ${amount}`, updatedAt: new Date() })
+    .where(sql`${userCredits.userId} = ${userId} AND ${userCredits.balance} >= ${amount}`)
+    .returning({ balance: userCredits.balance });
+  return rows[0]?.balance ?? null;
+}
+
+async function refundCredits(userId: string, amount: number): Promise<number | null> {
+  if (amount <= 0) return null;
+  const rows = await db
+    .update(userCredits)
+    .set({ balance: sql`${userCredits.balance} + ${amount}`, updatedAt: new Date() })
+    .where(eq(userCredits.userId, userId))
+    .returning({ balance: userCredits.balance });
+  return rows[0]?.balance ?? null;
+}
 
 export async function POST(request: Request) {
   try {
+    const { data: session } = await auth.getSession();
+    const userId = session?.user?.id ?? null;
+
     const body = await request.json();
     const messages: ChatMessage[] = body?.messages;
     const model: string = body?.model;
 
     if (!Array.isArray(messages) || messages.length === 0) {
-      return NextResponse.json(
-        { error: "messages must be a non-empty array" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "messages must be a non-empty array" }, { status: 400 });
     }
 
     const prompt: string | null = body?.prompt ?? null;
-    const temperature: number | null =
-      typeof body?.temperature === "number" ? body.temperature : null;
+    const temperature: number | null = typeof body?.temperature === "number" ? body.temperature : null;
 
     const allMessages = prompt
       ? [{ role: "system" as const, content: prompt }, ...messages]
       : messages;
+
+    const promptCharCount = allMessages.reduce((sum, m) => sum + (m.content?.length ?? 0), 0);
+    const preDebit = estimateMaxCredits(model, promptCharCount, MAX_TOKENS_PER_RESPONSE);
+
+    let preDebitedAmount = 0;
+
+    if (userId) {
+      const newBalance = await debitCredits(userId, preDebit);
+      if (newBalance === null) {
+        return NextResponse.json({ error: "out_of_credits" }, { status: 402 });
+      }
+      preDebitedAmount = preDebit;
+    } else {
+      const { id: anonId } = await getOrCreateAnonId();
+      const allowed = await checkTrialAllowed(anonId);
+      console.log("[/api/openrouter] trial check", { anonId, allowed });
+      if (!allowed) {
+        return NextResponse.json(
+          { error: "trial_exhausted", limit: TRIAL_LIMIT },
+          { status: 402 }
+        );
+      }
+    }
 
     let response: Response;
     try {
@@ -42,6 +106,7 @@ export async function POST(request: Request) {
         signal: request.signal,
       });
     } catch (e) {
+      if (userId && preDebitedAmount > 0) await refundCredits(userId, preDebitedAmount).catch(console.error);
       if (e instanceof Error && e.name === "AbortError") {
         return new Response(null, { status: 499 });
       }
@@ -49,16 +114,66 @@ export async function POST(request: Request) {
     }
 
     if (!response.ok) {
+      if (userId && preDebitedAmount > 0) await refundCredits(userId, preDebitedAmount).catch(console.error);
       if (response.status === 429) {
         return NextResponse.json({ error: "rate_limited" }, { status: 429 });
       }
-      return NextResponse.json(
-        { error: "failed to generate response" },
-        { status: 500 },
-      );
+      return NextResponse.json({ error: "failed to generate response" }, { status: 500 });
     }
 
-    return new Response(response.body, {
+    const readable = new ReadableStream({
+      async start(controller) {
+        const reader = response.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let promptTokens = 0;
+        let completionTokens = 0;
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            controller.enqueue(value);
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
+
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed.startsWith("data: ") || trimmed === "data: [DONE]") continue;
+              try {
+                const json = JSON.parse(trimmed.slice(6));
+                if (json.usage) {
+                  promptTokens = json.usage.prompt_tokens ?? 0;
+                  completionTokens = json.usage.completion_tokens ?? 0;
+                }
+              } catch { /* ignore parse errors */ }
+            }
+          }
+        } finally {
+          controller.close();
+
+          if (userId && preDebitedAmount > 0) {
+            const actualCost = computeCost(model, promptTokens, completionTokens);
+            const actualCredits = Math.ceil(actualCost / USD_PER_CREDIT);
+            // If we got usage data, reconcile (refund excess). Otherwise keep
+            // the full pre-debit — aborts/missing usage shouldn't be free.
+            if (promptTokens > 0 || completionTokens > 0) {
+              const diff = preDebitedAmount - actualCredits;
+              if (diff > 0) {
+                await refundCredits(userId, diff).catch(console.error);
+              } else if (diff < 0) {
+                // Cost exceeded estimate (rare with token cap) — debit the rest.
+                await debitCredits(userId, -diff).catch(console.error);
+              }
+            }
+          }
+        }
+      },
+    });
+
+    return new Response(readable, {
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
@@ -70,9 +185,6 @@ export async function POST(request: Request) {
       return new Response(null, { status: 499 });
     }
     console.error("OpenRouter route failed:", error);
-    return NextResponse.json(
-      { error: "failed to generate response" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "failed to generate response" }, { status: 500 });
   }
 }

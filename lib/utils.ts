@@ -17,35 +17,29 @@ export const ANALYSES: Record<
   string,
   { name: string; blurb: string; prompt: string }
 > = {
+  pickwinner: {
+    name: "Pick a winner",
+    blurb: "Best answer, with reasoning",
+    prompt:
+      "Pick the best response and explain why in 2–3 casual sentences. Name the winner in your first sentence. If another model had a genuinely useful angle the winner missed, mention it briefly. No headers, no labels, no bullet points — just write naturally.",
+  },
   synthesize: {
-    name: "Synthesize",
+    name: "Combine answers",
     blurb: "Merge into one best answer",
     prompt:
       "Synthesize the following AI responses into a single best answer. Note where they agree, flag important disagreements, and produce a clear final answer. Be concise.",
   },
-  compare: {
-    name: "Compare",
-    blurb: "Agreements & disagreements",
+  tldr: {
+    name: "TL;DR",
+    blurb: "One sentence per model",
     prompt:
-      "Compare the following AI responses. List: 1) Key points all responses agree on, 2) Significant disagreements (with which model said what), 3) Unique insights from each.",
-  },
-  critique: {
-    name: "Critique",
-    blurb: "Find weaknesses",
-    prompt:
-      "Critique the following AI responses. For each one, identify weaknesses, potential errors, oversimplifications, or missing context. Be specific.",
+      "For each AI response below, output exactly one line in the format:\n\n<model name>: <one-sentence summary capturing the core answer>\n\nNo intros, no headers, no bullet points beyond this. Each summary must be a single sentence under 25 words.",
   },
   factcheck: {
-    name: "Fact-check",
-    blurb: "Verify claims",
+    name: "Key differences",
+    blurb: "What each model said differently",
     prompt:
-      "Fact-check the following AI responses. Identify any claims that appear factually incorrect, unverified, or suspicious. Note which model made each questionable claim. If everything looks correct, say so.",
-  },
-  adherence: {
-    name: "Check adherence",
-    blurb: "Did they follow the system prompt?",
-    prompt:
-      "Evaluate how well each AI response followed the SYSTEM PROMPT below. Score each model from 1-10 with a one-sentence justification, then summarize which model followed it best.",
+      "Compare the AI responses below and list only the meaningful differences between them — where they gave different information, took different angles, or reached different conclusions. Skip anything they all agree on. Format as a short bulleted list. No intro, no summary.",
   },
 };
 
@@ -78,6 +72,21 @@ export const computeCost = (
       completionTokens * model.pricing.completion) /
     1_000_000
   );
+};
+
+/**
+ * Worst-case cost in credits for a request: rough char→token estimate for the
+ * prompt plus MAX_TOKENS_PER_RESPONSE for the completion. Used to pre-debit
+ * credits before streaming so aborts can't bypass billing.
+ */
+export const estimateMaxCredits = (
+  modelId: string,
+  promptCharCount: number,
+  maxCompletionTokens: number,
+) => {
+  const promptTokens = Math.ceil(promptCharCount / 4);
+  const cost = computeCost(modelId, promptTokens, maxCompletionTokens);
+  return Math.max(1, Math.ceil(cost / USD_PER_CREDIT));
 };
 
 export const formatLatency = (ms: number) => {
