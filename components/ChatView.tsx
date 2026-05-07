@@ -11,7 +11,6 @@ import {
   MenuIcon,
   SendAltIcon,
   SparkleIcon,
-  SplitIcon,
   StopIcon,
   CopyIcon,
   CheckIcon,
@@ -21,7 +20,6 @@ import {
   SliderIcon,
   StarIcon,
 } from "@/components/icons";
-import { GridFour } from "@phosphor-icons/react";
 import { RateLimitMessage } from "@/components/RateLimitMessage";
 
 type Props = {
@@ -40,7 +38,6 @@ type Props = {
   setUserMessage: (m: string) => void;
   handleSendMessage: (content: string) => void;
   handleCancel: () => void;
-  handleSplit: () => void;
   showAnalysisPanel: boolean;
   setShowAnalysisPanel: (s: boolean) => void;
   unifiedScrollRef: React.RefObject<HTMLDivElement | null>;
@@ -108,7 +105,6 @@ export function ChatView({
   setUserMessage,
   handleSendMessage,
   handleCancel,
-  handleSplit,
   showAnalysisPanel,
   setShowAnalysisPanel,
   unifiedScrollRef,
@@ -122,7 +118,6 @@ export function ChatView({
 }: Props) {
   const [chosenByRound, setChosenByRound] = useState<Map<number, number>>(new Map());
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
-  const [sideBySide, setSideBySide] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -202,19 +197,20 @@ export function ChatView({
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden min-w-0" style={{ maxWidth: "100%" }}>
       {/* ── Header ── */}
       <div
         className="w-full shrink-0 relative px-4 sm:px-8"
-        style={{ paddingTop: 16, paddingBottom: 10 }}
+        style={{ paddingTop: 16, paddingBottom: 10, touchAction: "none" }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
             onClick={onOpenSidebar}
-            className="md:hidden shrink-0 cursor-pointer active:scale-95 transition-transform"
-            style={{ background: "rgba(237,230,221,0.06)", border: 0, padding: 4, borderRadius: 10 }}
+            aria-label="Open chat sidebar"
+            className="md:hidden shrink-0 cursor-pointer active:scale-95 transition-transform flex items-center justify-center"
+            style={{ background: "rgba(237,230,221,0.06)", border: 0, width: 36, height: 36, borderRadius: 10, color: "var(--cz-text)" }}
           >
-            <img src="/logo.png" alt="Menu" className="w-7 h-7 rounded-lg object-contain" />
+            <MenuIcon size={22} weight="regular" />
           </button>
           <h1 className="truncate flex-1 min-w-0" style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-0.01em" }}>
             {activeChat?.title ?? "New chat"}
@@ -228,7 +224,7 @@ export function ChatView({
             onMouseEnter={e => { if (!blindMode) { (e.currentTarget as HTMLElement).style.background = "rgba(237,230,221,0.06)"; (e.currentTarget as HTMLElement).style.opacity = "1"; } }}
             onMouseLeave={e => { if (!blindMode) { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.opacity = "0.65"; } }}
           >
-            {blindMode ? <EyeIcon size={14} /> : <EyeOffIcon size={14} />}
+            {blindMode ? <EyeIcon size={20} /> : <EyeOffIcon size={20} />}
             <span className="hidden sm:inline">Blind mode</span>
           </button>
 
@@ -247,50 +243,22 @@ export function ChatView({
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    width: 16,
-                    height: 16,
+                    width: 22,
+                    height: 22,
                     borderRadius: "50%",
                     background: model.color + "30",
                     border: `1.5px solid ${model.color}55`,
-                    marginLeft: idx > 0 ? -5 : 0,
+                    marginLeft: idx > 0 ? -7 : 0,
                     zIndex: models.length - idx,
                     position: "relative",
                   }}
                 >
-                  <img src={model.icon} alt={model.name} style={{ width: 9, height: 9, objectFit: "contain", borderRadius: 1 }} />
+                  <img src={model.icon} alt={model.name} style={{ width: 13, height: 13, objectFit: "contain", borderRadius: 2 }} />
                 </span>
               ))}
             </span>
             <span className="hidden sm:inline" style={{ fontSize: 12 }}>{models.length} AIs</span>
           </button>
-
-          {messages.length > 0 && models.length > 1 && !blindMode && (
-            <button
-              onClick={() => setSideBySide(!sideBySide)}
-              title={sideBySide ? "Stack responses" : "Show responses side by side"}
-              className="hidden md:flex items-center gap-1.5"
-              style={sideBySide ? pillOn : pillBase}
-              onMouseEnter={e => { if (!sideBySide) { (e.currentTarget as HTMLElement).style.background = "rgba(237,230,221,0.06)"; (e.currentTarget as HTMLElement).style.opacity = "1"; } }}
-              onMouseLeave={e => { if (!sideBySide) { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.opacity = "0.65"; } }}
-            >
-              <GridFour size={14} />
-              <span className="hidden lg:inline">Side by side</span>
-            </button>
-          )}
-
-          {messages.length > 0 && models.length > 1 && !blindMode && (
-            <button
-              onClick={handleSplit}
-              title="Split into separate threads per model"
-              className="hidden md:flex items-center gap-1.5"
-              style={pillBase}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(237,230,221,0.06)"; (e.currentTarget as HTMLElement).style.opacity = "1"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.opacity = "0.65"; }}
-            >
-              <SplitIcon size={14} />
-              <span className="hidden lg:inline">Split</span>
-            </button>
-          )}
 
           <button
             onClick={() => setShowAnalysisPanel(!showAnalysisPanel)}
@@ -299,7 +267,7 @@ export function ChatView({
             onMouseEnter={e => { if (!showAnalysisPanel) { (e.currentTarget as HTMLElement).style.background = "rgba(237,230,221,0.06)"; (e.currentTarget as HTMLElement).style.opacity = "1"; } }}
             onMouseLeave={e => { if (!showAnalysisPanel) { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.opacity = "0.65"; } }}
           >
-            <SliderIcon size={14} />
+            <SliderIcon size={20} />
             <span className="hidden sm:inline">Settings</span>
           </button>
           </div>
@@ -387,8 +355,12 @@ export function ChatView({
       </div>
 
       {/* ── Messages feed ── */}
-      <div ref={unifiedScrollRef} className="flex-1 overflow-y-auto" style={{ display: "flex", flexDirection: "column" }}>
-        <div className="px-4 sm:px-8" style={{ paddingTop: 14, paddingBottom: 24, display: "flex", flexDirection: "column", gap: 22, maxWidth: sideBySide ? "100%" : 760, width: "100%", margin: "0 auto", flex: 1 }}>
+      <div
+        ref={unifiedScrollRef}
+        className="flex-1 overflow-y-auto overflow-x-hidden"
+        style={{ display: "flex", flexDirection: "column", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}
+      >
+        <div className="px-4 sm:px-8" style={{ paddingTop: 14, paddingBottom: 24, display: "flex", flexDirection: "column", gap: 22, maxWidth: 760, width: "100%", margin: "0 auto", flex: 1, boxSizing: "border-box" }}>
           {messages.length === 0 && Object.keys(streamingContent).length === 0 && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 20 }}>
               <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
@@ -425,7 +397,7 @@ export function ChatView({
               if (!message.model) {
                 return (
                   <div key={i} className="flex flex-col items-end animate-msg-in">
-                    <div style={{ background: "rgba(237,230,221,0.08)", padding: "11px 17px", borderRadius: 18, fontSize: 14.5, maxWidth: sideBySide ? "100%" : "70%", lineHeight: 1.65, whiteSpace: "pre-wrap" }}>
+                    <div style={{ background: "rgba(237,230,221,0.08)", padding: "11px 17px", borderRadius: 18, fontSize: 14.5, maxWidth: "70%", lineHeight: 1.65, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
                       {message.content}
                     </div>
                   </div>
@@ -465,7 +437,7 @@ export function ChatView({
                     <div style={{ flex: 1, minWidth: 0 }}>
                       {/* Header row */}
                       {!compact && (
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7, flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2, flexWrap: "wrap" }}>
                           {message.synthesis ? (
                             <>
                               <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--cz-accent)" }}>Synthesis</span>
@@ -567,73 +539,6 @@ export function ChatView({
               );
             };
 
-            if (sideBySide && !blindMode) {
-              // Group into rounds: user msg → assistant responses (side by side) → synthesis
-              const elements: React.ReactNode[] = [];
-              let i = 0;
-              while (i < messages.length) {
-                const msg = messages[i];
-                if (msg.role === "user") {
-                  elements.push(
-                    <div key={`user-${i}`} className="flex flex-col items-center animate-msg-in">
-                      <div style={{ background: "rgba(237,230,221,0.08)", padding: "11px 17px", borderRadius: 18, fontSize: 14.5, lineHeight: 1.65, whiteSpace: "pre-wrap", maxWidth: 760 }}>
-                        {msg.content}
-                      </div>
-                    </div>
-                  );
-                  i++;
-                  // Collect consecutive assistant responses
-                  const assistants: { msg: ChatMessage; idx: number }[] = [];
-                  while (i < messages.length && messages[i].role === "assistant" && !messages[i].synthesis) {
-                    assistants.push({ msg: messages[i], idx: i });
-                    i++;
-                  }
-                  if (assistants.length > 0) {
-                    const n = assistants.length;
-                    elements.push(
-                      <div key={`round-${assistants[0].idx}`}>
-                        {/* Node lines from user bubble to each column */}
-                        <div style={{ display: "flex", justifyContent: "center", height: 40, position: "relative" }}>
-                          <svg viewBox="0 0 100 40" width="100%" height="40" preserveAspectRatio="none" style={{ position: "absolute", top: 0, left: 0 }}>
-                            {Array.from({ length: n }).map((_, ci) => {
-                              const endX = ((ci + 0.5) / n) * 100;
-                              return (
-                                <path
-                                  key={ci}
-                                  d={`M 50 0 C 50 22, ${endX} 18, ${endX} 40`}
-                                  stroke="rgba(237,230,221,0.12)"
-                                  strokeWidth="0.8"
-                                  fill="none"
-                                  vectorEffect="non-scaling-stroke"
-                                />
-                              );
-                            })}
-                          </svg>
-                        </div>
-                        <div style={{ display: "grid", gridTemplateColumns: `repeat(${n}, 1fr)`, gap: 24 }}>
-                          {assistants.map(({ msg: aMsg, idx }) => (
-                            <div key={idx} style={{ minWidth: 0, overflow: "hidden" }}>
-                              {renderMessageCard(aMsg, idx, true)}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  }
-                } else {
-                  // Synthesis or stray assistant
-                  elements.push(
-                    <div key={`msg-${i}`} style={{ maxWidth: 760, margin: "0 auto", width: "100%" }}>
-                      {renderMessageCard(msg, i)}
-                    </div>
-                  );
-                  i++;
-                }
-              }
-              return elements;
-            }
-
-            // Default stacked rendering
             return messages.map((message, i) => renderMessageCard(message, i));
           })()}
 
@@ -647,7 +552,7 @@ export function ChatView({
                   {meta ? <ModelIcon model={meta} /> : <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(237,230,221,0.08)" }} />}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
                     {meta && <span style={{ fontSize: 12.5, fontWeight: 600 }}>{meta.name}</span>}
                     <span style={{ display: "flex", gap: 3 }}>
                       {[0, 1, 2].map((j) => (
@@ -674,7 +579,7 @@ export function ChatView({
       </div>
 
       {/* ── Composer ── */}
-      <div className="px-4 sm:px-8" style={{ paddingTop: 8, paddingBottom: "max(22px, env(safe-area-inset-bottom))", maxWidth: 760, width: "100%", margin: "0 auto", alignSelf: "center", boxSizing: "border-box" }}>
+      <div className="px-4 sm:px-8 shrink-0" style={{ paddingTop: 8, paddingBottom: "max(14px, env(safe-area-inset-bottom))", maxWidth: 760, width: "100%", margin: "0 auto", alignSelf: "center", boxSizing: "border-box" }}>
         {error && (
           <div style={{ marginBottom: 8, fontSize: 13, color: "#f87171", background: "rgba(239,68,68,0.1)", borderRadius: 10, padding: "8px 12px", display: "inline-flex", alignItems: "center", gap: 6 }}>
             {error}

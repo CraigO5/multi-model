@@ -15,9 +15,19 @@
   --color-foreground: var(--foreground);
 }
 
-body {
+html, body {
   background: var(--background);
   color: var(--foreground);
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  /* Block body-level scroll so only the chat feed scrolls */
+  position: fixed;
+  inset: 0;
+  width: 100%;
 }
 
 @keyframes panel-in {
@@ -112,14 +122,9 @@ body {
   animation: collapse-out 0.2s ease-in both;
 }
 
-/* PWA standalone: safe areas for notched devices */
-@supports (padding: env(safe-area-inset-top)) {
-  html {
-    padding-top: env(safe-area-inset-top);
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
-  }
-}
+/* Safe-area handling is applied per-component (header padding, composer
+   padding) rather than on <html>, so the chat container can occupy the full
+   visible viewport and only the message feed scrolls. */
 
 /* Hide scrollbar on mobile for cleaner PWA feel */
 @media (max-width: 640px) {

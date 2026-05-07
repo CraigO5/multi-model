@@ -43,7 +43,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <link rel="apple-touch-icon" href="/logo.png" />
       </head>
-      <body className="min-h-full flex flex-col">
+      <body className="h-full overflow-hidden">
         <script
           dangerouslySetInnerHTML={{
             __html: `if("serviceWorker"in navigator)navigator.serviceWorker.register("/sw.js")`,

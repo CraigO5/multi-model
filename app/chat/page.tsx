@@ -1060,8 +1060,16 @@ ${latestResponses
   // ─── Unified layout ───────────────────────────────────────────────────────
   return (
     <div
-      className="h-screen flex overflow-hidden"
-      style={{ background: "var(--cz-bg)", color: "var(--cz-text)" }}
+      className="flex overflow-hidden"
+      style={{
+        background: "var(--cz-bg)",
+        color: "var(--cz-text)",
+        height: "100dvh",
+        maxHeight: "100dvh",
+        paddingTop: "env(safe-area-inset-top)",
+        paddingLeft: "env(safe-area-inset-left)",
+        paddingRight: "env(safe-area-inset-right)",
+      }}
       onClick={() => isSplit && setSwapSlot(null)}
     >
       <Sidebar {...sidebarProps} />
@@ -1123,7 +1131,6 @@ ${latestResponses
               setUserMessage={setUserMessage}
               handleSendMessage={handleSendMessage}
               handleCancel={handleCancel}
-              handleSplit={handleSplit}
               showAnalysisPanel={showAnalysisPanel}
               setShowAnalysisPanel={setShowAnalysisPanel}
               unifiedScrollRef={unifiedScrollRef}
@@ -1168,7 +1175,6 @@ ${latestResponses
           setUserMessage={setUserMessage}
           handleSendMessage={handleSendMessage}
           handleCancel={handleCancel}
-          handleSplit={handleSplit}
           showAnalysisPanel={showAnalysisPanel}
           setShowAnalysisPanel={setShowAnalysisPanel}
           unifiedScrollRef={unifiedScrollRef}
